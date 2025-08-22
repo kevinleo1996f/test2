@@ -4,17 +4,34 @@
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
+    "start:lan": "expo start --lan",
+    "start:tunnel": "expo start --tunnel",
+    "start:smart": "node ./scripts/start-dev.js",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "server": "node server/index.js",
+    "server:full": "node start-server.js",
+    "dev:server": "nodemon server/index.js",
+    "test-api": "node test-connection.js",
+    "test-users": "node test-users-api.js",
+    "test-crud": "node test-crud.js",
+    "test-app": "node test-app-connection.js",
+    "test-admin": "node test-admin-crud.js",
+    "seed": "node server/seed/seed-data.js",
+    "seed:users": "node server/seed/users-seed.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
     "@react-navigation/bottom-tabs": "^7.3.10",
     "@react-navigation/elements": "^2.3.8",
     "@react-navigation/native": "^7.1.6",
+    "bcryptjs": "^3.0.2",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
     "expo": "~53.0.17",
     "expo-blur": "~14.1.5",
     "expo-constants": "~17.1.7",
@@ -28,6 +45,8 @@
     "expo-symbols": "~0.4.5",
     "expo-system-ui": "~5.0.10",
     "expo-web-browser": "~14.2.0",
+    "express": "^4.18.2",
+    "mongoose": "^8.0.3",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.5",
@@ -41,9 +60,10 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/react": "~19.0.10",
-    "typescript": "~5.8.3",
     "eslint": "^9.25.0",
-    "eslint-config-expo": "~9.2.0"
+    "eslint-config-expo": "~9.2.0",
+    "nodemon": "^3.0.2",
+    "typescript": "~5.8.3"
   },
   "private": true
 }

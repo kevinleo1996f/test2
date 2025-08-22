@@ -37,6 +37,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id"
+      },
+      "API_ORIGIN": "https://01658fa4dd4d.ngrok-free.app"
+    },
+    "owner": "your-expo-username"
   }
 }
