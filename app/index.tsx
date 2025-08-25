@@ -5,7 +5,6 @@
 // including user authentication, provider management, and purchase functionality
 
 // Import icons for the UI (battery, solar, etc.)
-import { Ionicons } from '@expo/vector-icons';
 
 // Import Expo constants to access app configuration (like API URLs)
 import Constants from 'expo-constants';
@@ -20,8 +19,7 @@ import {
   Modal, // For showing modal dialogs (popup forms)
   Platform, // For platform-specific code (iOS/Android/Web)
   SafeAreaView, // For safe area on different devices (notches, etc.)
-  ScrollView, // For scrollable content areas
-  StatusBar, // For status bar styling
+  ScrollView, // For status bar styling
   Text, // For displaying text
   TextInput, // For input fields (forms)
   TouchableOpacity, // For touchable buttons
@@ -30,7 +28,12 @@ import {
 
 // Import styles from separate file for easier debugging
 import { GestureHandlerRootView, PanGestureHandler, PinchGestureHandler, State, TapGestureHandler } from 'react-native-gesture-handler';
+import Header from './components/Header';
+import { validateAdminForm, validateUserForm } from './components/validation';
 import { styles } from './styles';
+import MarketplaceTab from './tab/MarketplaceTab';
+import PersonalTab from './tab/PersonalTab';
+import StorageTab from './tab/StorageTab';
 
 // ============================================================================
 // API CONFIGURATION
@@ -97,6 +100,9 @@ export default function Index() {
   
   // Tab Navigation - controls which main section is displayed
   const [activeTab, setActiveTab] = useState('marketplace'); // 'marketplace', 'storage', or 'personal'
+  
+  // State to control navigation from marketplace to personal tab
+  const [navigateToPersonal, setNavigateToPersonal] = useState(false);
   
   // Storage Calculator - for calculating energy storage costs
   const [storageCapacity, setStorageCapacity] = useState(''); // User input for storage capacity
@@ -647,7 +653,7 @@ export default function Index() {
           { text: 'Cancel', style: 'cancel' },
           { 
             text: 'Login', 
-            onPress: () => setActiveTab('personal')
+            onPress: () => handleTabChange('personal')
           }
         ]
       );
@@ -736,7 +742,7 @@ export default function Index() {
 
   // CRUD Handler Functions
   const handleAddProvider = async () => {
-    if (!validateAdminForm()) {
+    if (!validateAdminForm(providerForm, setAdminFormErrors)) {
       Alert.alert('Validation Error', 'Please fix the errors in the form');
       return;
     }
@@ -889,634 +895,13 @@ export default function Index() {
     setShowEditProviderModal(true);
   };
 
-  const renderStorageCalculator = () => (
-    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-      {/* Info Card and Segmented Control */}
-      <View style={styles.infoCard}>
-        <Ionicons name="battery-charging" size={36} color="#2E7D32" style={{ marginBottom: 8 }} />
-        <Text style={styles.infoTitle}>Energy Solutions</Text>
-        <Text style={styles.infoSubtitle}>Estimate your savings and payback for storing or generating your own electricity.</Text>
-        <View style={styles.segmentedControl}>
-          <TouchableOpacity
-            style={[styles.segmentButton, storageTab === 'storage' && styles.segmentButtonActive]}
-            onPress={() => setStorageTab('storage')}
-          >
-            <Text style={[styles.segmentText, storageTab === 'storage' && styles.segmentTextActive]}>Storage System</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.segmentButton, storageTab === 'solar' && styles.segmentButtonActive]}
-            onPress={() => setStorageTab('solar')}
-          >
-            <Text style={[styles.segmentText, storageTab === 'solar' && styles.segmentTextActive]}>Solar Panel</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      {/* Storage System Calculator */}
-      {storageTab === 'storage' && (
-      <View style={styles.calculatorCard}>
-          <Text style={styles.sectionTitle}>Storage System Calculator</Text>
-          <Text style={styles.sectionSubtitle}>Calculate the cost and payback of storing your excess electricity.</Text>
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Storage Capacity (kWh)</Text>
-          <TextInput
-            style={styles.input}
-            value={storageCapacity}
-            onChangeText={setStorageCapacity}
-            placeholder="Enter capacity (e.g., 10)"
-            keyboardType="numeric"
-          />
-        </View>
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Daily Usage (kWh)</Text>
-          <TextInput
-            style={styles.input}
-            value={dailyUsage}
-            onChangeText={setDailyUsage}
-            placeholder="Enter daily usage (e.g., 15)"
-            keyboardType="numeric"
-          />
-        </View>
-        {storageCost && (
-          <View style={styles.resultsCard}>
-            <Text style={styles.resultsTitle}>Cost Breakdown</Text>
-              <View style={styles.resultRow}><Text style={styles.resultLabel}>Battery Cost:</Text><Text style={styles.resultValue}>${storageCost.batteryCost}</Text></View>
-              <View style={styles.resultRow}><Text style={styles.resultLabel}>Installation:</Text><Text style={styles.resultValue}>${storageCost.installationCost}</Text></View>
-              <View style={styles.resultRow}><Text style={styles.resultLabel}>Total Cost:</Text><Text style={[styles.resultValue, styles.totalCost]}>${storageCost.totalCost}</Text></View>
-              <View style={styles.resultRow}><Text style={styles.resultLabel}>Payback Period:</Text><Text style={styles.resultValue}>{storageCost.paybackYears} years</Text></View>
-              <View style={styles.resultRow}><Text style={styles.resultLabel}>Monthly Savings:</Text><Text style={styles.resultValue}>${storageCost.monthlySavings}</Text></View>
-              {/* Visual bar for cost breakdown */}
-              <View style={{ flexDirection: 'row', marginTop: 12, alignItems: 'center' }}>
-                <View style={{ height: 12, width: `${(parseFloat(storageCost.batteryCost) / parseFloat(storageCost.totalCost)) * 100}%`, backgroundColor: '#2E7D32', borderRadius: 6 }} />
-                <View style={{ height: 12, width: `${(parseFloat(storageCost.installationCost) / parseFloat(storageCost.totalCost)) * 100}%`, backgroundColor: '#FF9800', borderRadius: 6, marginLeft: 2 }} />
-            </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
-                <Text style={{ fontSize: 10, color: '#2E7D32' }}>Battery</Text>
-                <Text style={{ fontSize: 10, color: '#FF9800' }}>Install</Text>
-            </View>
-          </View>
-        )}
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={() => {
-            if (storageCost) {
-              Alert.alert(
-                'Storage Quote', 
-                `Total cost: $${storageCost.totalCost}\nPayback: ${storageCost.paybackYears} years\nWould you like to proceed?`
-              );
-            }
-          }}
-        >
-          <Text style={styles.actionButtonText}>Get Quote</Text>
-        </TouchableOpacity>
-          <View style={styles.tipsCard}>
-            <Ionicons name="information-circle" size={20} color="#2E7D32" style={{ marginRight: 6 }} />
-            <Text style={styles.tipsText}>Storing excess electricity lets you use your own power at night or during outages, and can reduce your bills.</Text>
-          </View>
-        </View>
-      )}
-      {/* Solar Panel Calculator */}
-      {storageTab === 'solar' && (
-        <View style={styles.calculatorCard}>
-          <Text style={styles.sectionTitle}>Solar Panel Calculator</Text>
-          <Text style={styles.sectionSubtitle}>Estimate the cost and benefits of installing solar panels at your home.</Text>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Daily Usage (kWh)</Text>
-            <TextInput
-              style={styles.input}
-              value={solarDailyUsage}
-              onChangeText={setSolarDailyUsage}
-              placeholder="Enter daily usage (e.g., 15)"
-              keyboardType="numeric"
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Average Sun Hours/Day</Text>
-            <TextInput
-              style={styles.input}
-              value={solarSunHours}
-              onChangeText={setSolarSunHours}
-              placeholder="e.g., 5"
-              keyboardType="numeric"
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Panel Cost per kW ($)</Text>
-            <TextInput
-              style={styles.input}
-              value={solarPanelCost}
-              onChangeText={setSolarPanelCost}
-              placeholder="e.g., 1200"
-              keyboardType="numeric"
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Installation Cost ($)</Text>
-            <TextInput
-              style={styles.input}
-              value={solarInstallCost}
-              onChangeText={setSolarInstallCost}
-              placeholder="e.g., 2000"
-              keyboardType="numeric"
-            />
-          </View>
-          {solarResult && (
-            <View style={styles.resultsCard}>
-              <Text style={styles.resultsTitle}>Solar System Estimate</Text>
-              <View style={styles.resultRow}><Text style={styles.resultLabel}>System Size Needed:</Text><Text style={styles.resultValue}>{solarResult.systemSize} kW</Text></View>
-              <View style={styles.resultRow}><Text style={styles.resultLabel}>Total Cost:</Text><Text style={[styles.resultValue, styles.totalCost]}>${solarResult.totalCost}</Text></View>
-              <View style={styles.resultRow}><Text style={styles.resultLabel}>Monthly Savings:</Text><Text style={styles.resultValue}>${solarResult.monthlySavings}</Text></View>
-              <View style={styles.resultRow}><Text style={styles.resultLabel}>Payback Period:</Text><Text style={styles.resultValue}>{solarResult.paybackYears} years</Text></View>
-              <View style={styles.resultRow}><Text style={styles.resultLabel}>CO₂ Saved:</Text><Text style={styles.resultValue}>{solarResult.co2Saved} tons/year</Text></View>
-            </View>
-          )}
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => {
-              if (solarResult) {
-                Alert.alert(
-                  'Solar Quote', 
-                  `Total cost: $${solarResult.totalCost}\nPayback: ${solarResult.paybackYears} years\nWould you like to proceed?`
-                );
-              }
-            }}
-          >
-            <Text style={styles.actionButtonText}>Get Solar Quote</Text>
-          </TouchableOpacity>
-          <View style={styles.tipsCard}>
-            <Ionicons name="sunny" size={20} color="#FF9800" style={{ marginRight: 6 }} />
-            <Text style={styles.tipsText}>Solar panels can lower your bills, increase your home's value, and help the environment by reducing carbon emissions.</Text>
-          </View>
-        </View>
-      )}
-      {/* FAQ/Info Section */}
-      <View style={styles.faqCard}>
-        <Text style={styles.faqTitle}>Why consider energy storage or solar?</Text>
-        <Text style={styles.faqText}>• Store excess energy for use at night or during outages. {'\n'}• Reduce your electricity bills and reliance on the grid. {'\n'}• Solar panels generate clean, renewable energy and can pay for themselves over time.</Text>
-      </View>
-    </ScrollView>
-  );
 
-  const renderMarketplace = () => (
-    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-      {/* Pull-to-refresh indicator */}
-      {refreshOffset > 0 && (
-        <View style={[styles.pullToRefreshIndicator, { transform: [{ translateY: refreshOffset }] }]}>
-          <Ionicons 
-            name={refreshOffset > 50 ? "checkmark-circle" : "arrow-down"} 
-            size={20} 
-            color={refreshOffset > 50 ? "#4CAF50" : "#666"} 
-          />
-          <Text style={styles.pullToRefreshText}>
-            {refreshOffset > 50 ? "Release to refresh" : "Pull down to refresh"}
-          </Text>
-        </View>
-      )}
-      
-      <View style={styles.marketplaceHeader}>
-        <Text style={styles.sectionTitle}>Electricity Marketplace</Text>
-        <Text style={styles.subtitle}>Buy and sell electricity P2P</Text>
-        
-        {/* API Status Indicator */}
-        <View style={[styles.statusIndicator, { backgroundColor: apiStatus === 'connected' ? '#4CAF50' : '#FF9800' }]}>
-          <Text style={styles.statusText}>
-            {apiStatus === 'connected' ? '🟢 Connected to Database' : '🟡 Database Not Available'}
-          </Text>
-        </View>
-        
 
-        
-        
-        
 
-        
-        {userBalance > 0 && (
-          <View style={styles.balanceCard}>
-            <Text style={styles.balanceTitle}>Your Balance</Text>
-            <Text style={styles.balanceAmount}>{userBalance.toFixed(2)} kWh</Text>
-          </View>
-        )}
-      </View>
-      
-      {isLoading ? (
-        <View style={styles.loadingCard}>
-          <Text style={styles.loadingText}>Loading providers...</Text>
-        </View>
-      ) : electricityProviders.length > 0 ? (
-        electricityProviders.map((provider, index) => (
-          <View key={provider._id || provider.id || `${provider.name}-${index}`} style={styles.providerCard}>
-            <View style={styles.providerInfo}>
-              <Text style={styles.providerName}>{provider.name}</Text>
-              <Text style={styles.providerType}>{provider.type} Energy</Text>
-              <Text style={styles.providerDescription}>{provider.description}</Text>
-              <View style={styles.providerStats}>
-                <Text style={styles.price}>${provider.price}/kWh</Text>
-                <Text style={styles.rating}>⭐ {provider.rating}</Text>
-              </View>
-            </View>
-            <View style={styles.providerActions}>
-              <Text style={styles.available}>{provider.available} kWh available</Text>
-              {isAdminMode ? (
-                <View style={styles.adminActions}>
-                  <TouchableOpacity 
-                    style={styles.editButton}
-                    onPress={() => openEditModal(provider)}
-                    disabled={deletingProviderId === provider._id}
-                  >
-                    <Text style={styles.editButtonText}>Edit</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[
-                      styles.deleteButton,
-                      deletingProviderId === provider._id && styles.deleteButtonLoading
-                    ]}
-                    onPress={() => confirmDeleteProvider(provider)}
-                    disabled={deletingProviderId === provider._id}
-                  >
-                    <Text style={styles.deleteButtonText}>
-                      {deletingProviderId === provider._id ? 'Deleting...' : 'Delete'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                                  // Check if this is the user's own provider
-                  (() => {
-                    // More robust check for user's own provider
-                    const isOwnProvider = loggedInUser === 'user' && 
-                      userProviderStatus && 
-                      (
-                        provider._id === userProviderStatus._id || // Exact ID match
-                        (provider.userId === 'user123' && userProviderStatus.userId === 'user123') || // User ID match
-                        (provider.contactEmail === 'user@example.com' && userProviderStatus.contactEmail === 'user@example.com') // Email match
-                      );
-                  
-                  if (isOwnProvider) {
-                    return (
-                      <View style={styles.ownProviderIndicator}>
-                        <Ionicons name="person" size={16} color="#666" />
-                        <Text style={styles.ownProviderText}>Your Provider</Text>
-                      </View>
-                    );
-                  }
-                  
-                  return loggedInUser ? (
-                <TouchableOpacity 
-                  style={styles.buyButton}
-                  onPress={() => {
-                    setSelectedProvider(provider);
-                    setShowProviderModal(true);
-                  }}
-                >
-                  <Text style={styles.buyButtonText}>Buy</Text>
-                </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity 
-                      style={[styles.buyButton, { backgroundColor: '#ccc' }]}
-                      onPress={() => {
-                        Alert.alert(
-                          'Login Required',
-                          'Please log in to make purchases. You will be redirected to the login page.',
-                          [
-                            { text: 'Cancel', style: 'cancel' },
-                            { 
-                              text: 'Login', 
-                              onPress: () => setActiveTab('personal')
-                            }
-                          ]
-                        );
-                      }}
-                    >
-                      <Text style={[styles.buyButtonText, { color: '#666' }]}>Login to Buy</Text>
-                    </TouchableOpacity>
-                  );
-                })()
-              )}
-            </View>
-          </View>
-        ))
-      ) : (
-        <View style={styles.noDataCard}>
-          <Text style={styles.noDataTitle}>No Providers Available</Text>
-          <Text style={styles.noDataText}>
-            {apiStatus === 'connected' 
-              ? 'No electricity providers found in the database. Please check back later.'
-              : 'Database connection required. Please start the server to view providers.'
-            }
-          </Text>
-          {apiStatus === 'disconnected' && (
-            <TouchableOpacity 
-              style={styles.retryButton}
-              onPress={async () => {
-                const isConnected = await checkApiConnection();
-                if (isConnected) {
-                  await fetchProviders();
-                }
-              }}
-            >
-              <Text style={styles.retryButtonText}>Retry Connection</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
 
-      {/* Add Provider Button (Admin Mode) */}
-      {isAdminMode && apiStatus === 'connected' && (
-        <TouchableOpacity 
-          style={styles.addProviderButton}
-          onPress={() => setShowAddProviderModal(true)}
-        >
-          <Text style={styles.addProviderButtonText}>➕ Add New Provider</Text>
-        </TouchableOpacity>
-      )}
 
-      {userPurchases.length > 0 && (
-        <View style={styles.purchasesCard}>
-          <Text style={styles.purchasesTitle}>Recent Purchases</Text>
-          {userPurchases.slice(-3).map((purchase, idx) => (
-            <View key={purchase.id || purchase._id || `purchase-${idx}`} style={styles.purchaseItem}>
-              <Text style={styles.purchaseProvider}>{purchase.provider}</Text>
-              <Text style={styles.purchaseDetails}>
-                {purchase.amount} kWh • ${purchase.cost.toFixed(2)} • {purchase.date}
-                {purchase.status === 'local' && ' (Local)'}
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
-    </ScrollView>
-  );
 
-  // Personal tab: show login if not logged in, else show dashboard or admin directions
-  const renderPersonalData = () => {
-    if (!loggedInUser) {
-      return (
-        <View style={styles.personalCard}>
-          <Text style={styles.sectionTitle}>Login</Text>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Username</Text>
-            <TextInput
-              style={styles.input}
-              value={loginState.username}
-              onChangeText={text => setLoginState({ ...loginState, username: text })}
-              placeholder="Enter username"
-              autoCapitalize="none"
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              value={loginState.password}
-              onChangeText={text => setLoginState({ ...loginState, password: text })}
-              placeholder="Enter password"
-              secureTextEntry
-            />
-          </View>
-          {loginState.error ? (
-            <Text style={{ color: 'red', marginBottom: 10 }}>{loginState.error}</Text>
-          ) : null}
-          <TouchableOpacity style={styles.actionButton} onPress={handleLogin}>
-            <Text style={styles.actionButtonText}>Login</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    if (loggedInUser === 'admin') {
-      return (
-        <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-          {/* Admin Header */}
-          <View style={styles.adminHeader}>
-            <Ionicons name="shield-checkmark" size={32} color="#2E7D32" />
-            <Text style={styles.adminTitle}>Admin Dashboard</Text>
-            <Text style={styles.adminSubtitle}>Welcome back, Administrator!</Text>
-          </View>
 
-          {/* Stats Cards */}
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Ionicons name="flash" size={24} color="#FF9800" />
-              <Text style={styles.statNumber}>{electricityProviders.length}</Text>
-              <Text style={styles.statLabel}>Active Providers</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Ionicons name="cart" size={24} color="#2196F3" />
-              <Text style={styles.statNumber}>{userPurchases.length}</Text>
-              <Text style={styles.statLabel}>Total Purchases</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Ionicons name="trending-up" size={24} color="#4CAF50" />
-              <Text style={styles.statNumber}>
-                ${userPurchases.reduce((sum, p) => sum + p.cost, 0).toFixed(2)}
-              </Text>
-              <Text style={styles.statLabel}>Revenue</Text>
-            </View>
-          </View>
-
-          {/* Admin Directions */}
-          <View style={styles.adminDirections}>
-            <Text style={styles.directionsTitle}>📋 Admin Actions</Text>
-            <View style={styles.directionItem}>
-              <Ionicons name="add-circle" size={20} color="#4CAF50" />
-              <Text style={styles.directionText}>Add new providers in Marketplace tab</Text>
-            </View>
-            <View style={styles.directionItem}>
-              <Ionicons name="create" size={20} color="#2196F3" />
-              <Text style={styles.directionText}>Edit provider details and pricing</Text>
-            </View>
-            <View style={styles.directionItem}>
-              <Ionicons name="trash" size={20} color="#F44336" />
-              <Text style={styles.directionText}>Remove inactive providers</Text>
-            </View>
-            <View style={styles.directionItem}>
-              <Ionicons name="refresh" size={20} color="#FF9800" />
-              <Text style={styles.directionText}>Monitor purchase activity below</Text>
-            </View>
-          </View>
-
-          {/* Active Providers Section */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="business" size={24} color="#2E7D32" />
-              <Text style={styles.sectionTitle}>Active Providers</Text>
-              <Text style={styles.sectionCount}>({electricityProviders.length})</Text>
-            </View>
-            {electricityProviders.length > 0 ? (
-              electricityProviders.map((provider, index) => (
-                <View key={provider._id || provider.id || `${provider.name}-${index}`} style={styles.providerListItem}>
-                  <View style={styles.providerListInfo}>
-                    <Text style={styles.providerListName}>{provider.name}</Text>
-                    <Text style={styles.providerListType}>{provider.type} Energy</Text>
-                    <Text style={styles.providerListPrice}>${provider.price}/kWh</Text>
-                  </View>
-                  <View style={styles.providerListStats}>
-                    <Text style={styles.providerListRating}>⭐ {provider.rating}</Text>
-                    <Text style={styles.providerListAvailable}>{provider.available} kWh</Text>
-                  </View>
-                </View>
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Ionicons name="business-outline" size={48} color="#ccc" />
-                <Text style={styles.emptyStateText}>No providers available</Text>
-                <Text style={styles.emptyStateSubtext}>Add providers in the Marketplace tab</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Purchase History Section */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="receipt" size={24} color="#2196F3" />
-              <Text style={styles.sectionTitle}>Recent Purchases</Text>
-              <Text style={styles.sectionCount}>({userPurchases.length})</Text>
-            </View>
-            {userPurchases.length > 0 ? (
-              userPurchases.map((purchase, index) => (
-                <View key={purchase.id || purchase._id || `purchase-${index}`} style={styles.purchaseListItem}>
-                  <View style={styles.purchaseListInfo}>
-                    <Text style={styles.purchaseListProvider}>{purchase.provider}</Text>
-                    <Text style={styles.purchaseListDate}>{purchase.date}</Text>
-                    <Text style={styles.purchaseListAmount}>{purchase.amount} kWh</Text>
-                  </View>
-                  <View style={styles.purchaseListStats}>
-                    <Text style={styles.purchaseListCost}>${purchase.cost.toFixed(2)}</Text>
-                    <Text style={styles.purchaseListStatus}>
-                      {purchase.status === 'local' ? '🔄 Local' : '✅ Complete'}
-                    </Text>
-                  </View>
-                </View>
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Ionicons name="receipt-outline" size={48} color="#ccc" />
-                <Text style={styles.emptyStateText}>No purchases yet</Text>
-                <Text style={styles.emptyStateSubtext}>Purchases will appear here</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Logout Button */}
-          <TouchableOpacity style={styles.adminLogoutButton} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color="#fff" />
-            <Text style={styles.adminLogoutText}>Logout</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      );
-    }
-    // If user
-    return (
-    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.personalCard}>
-        <Text style={styles.sectionTitle}>Personal Dashboard</Text>
-        
-        <View style={styles.userInfo}>
-          <Text style={styles.userName}>{userData.name}</Text>
-          <Text style={styles.userSubtitle}>Energy Consumer</Text>
-          <Text style={styles.currentProvider}>Current: {userData.currentProvider}</Text>
-        </View>
-          
-          {/* User Provider Status */}
-          <View style={styles.providerStatusCard}>
-            <Text style={styles.providerStatusTitle}>Provider Status</Text>
-            {userProviderStatus ? (
-              <View style={styles.providerStatusActive}>
-                <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
-                <Text style={styles.providerStatusText}>You are registered as a provider</Text>
-                <Text style={styles.providerStatusDetails}>
-                  {userProviderStatus.name} • ${userProviderStatus.price}/kWh • {userProviderStatus.available} kWh available
-                </Text>
-                <TouchableOpacity 
-                  style={styles.cancelProviderButton}
-                  onPress={cancelProviderStatus}
-                >
-                  <Text style={styles.cancelProviderText}>Cancel Provider Status</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.providerStatusInactive}>
-                <Ionicons name="add-circle-outline" size={24} color="#666" />
-                <Text style={styles.providerStatusText}>You are not registered as a provider</Text>
-                <TouchableOpacity 
-                  style={styles.becomeProviderButton}
-                  onPress={() => setShowBecomeProviderModal(true)}
-                >
-                  <Text style={styles.becomeProviderText}>Become a Provider</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-        </View>
-        
-        <View style={styles.statsGrid}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{userData.monthlyUsage}</Text>
-            <Text style={styles.statLabel}>Monthly Usage (kWh)</Text>
-          </View>
-          
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>${userData.averageCost}</Text>
-            <Text style={styles.statLabel}>Average Monthly Cost</Text>
-          </View>
-          
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{userData.totalConsumption}</Text>
-            <Text style={styles.statLabel}>Annual Consumption (kWh)</Text>
-          </View>
-          
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>${userData.savings}</Text>
-            <Text style={styles.statLabel}>Monthly Savings</Text>
-          </View>
-        </View>
-
-        <View style={styles.billingCard}>
-          <Text style={styles.billingTitle}>Billing Information</Text>
-          <View style={styles.billingRow}>
-            <Text style={styles.billingLabel}>Last Payment:</Text>
-            <Text style={styles.billingValue}>{userData.lastPayment}</Text>
-          </View>
-          <View style={styles.billingRow}>
-            <Text style={styles.billingLabel}>Next Payment:</Text>
-            <Text style={styles.billingValue}>{userData.nextPayment}</Text>
-          </View>
-          <View style={styles.billingRow}>
-            <Text style={styles.billingLabel}>Current Balance:</Text>
-            <Text style={styles.billingValue}>${userData.monthlyBill}</Text>
-          </View>
-        </View>
-        
-        <View style={styles.consumptionChart}>
-          <Text style={styles.chartTitle}>Monthly Consumption Trend</Text>
-          <View style={styles.chartBars}>
-            {[320, 380, 420, 390, 450, 480, 520, 490, 460, 430, 410, 450].map((value, index) => (
-              <View key={index} style={styles.chartBar}>
-                <View style={[styles.bar, { height: (value / 600) * 100 }]} />
-                <Text style={styles.barLabel}>{['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][index]}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-        
-        <View style={styles.carbonFootprint}>
-          <Text style={styles.carbonTitle}>Carbon Footprint</Text>
-          <Text style={styles.carbonValue}>{userData.carbonFootprint} tons CO2/year</Text>
-          <Text style={styles.carbonSubtitle}>You are saving 0.8 tons compared to grid average</Text>
-        </View>
-
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={() => Alert.alert('Support', 'Contact customer service for assistance')}
-        >
-          <Text style={styles.actionButtonText}>Contact Support</Text>
-          </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={handleLogout}
-            >
-              <Text style={styles.actionButtonText}>Logout</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
-  );
-  };
 
   // Check if user is already a provider
   const checkUserProviderStatus = async () => {
@@ -1542,7 +927,7 @@ export default function Index() {
 
   // Register user as provider
   const registerAsProvider = async () => {
-    if (!validateUserForm()) {
+    if (!validateUserForm(userProviderForm, setUserFormErrors)) {
       Alert.alert('Validation Error', 'Please fix the errors in the form');
       return;
     }
@@ -1636,112 +1021,38 @@ export default function Index() {
     );
   };
 
-  // Validation functions
-  const validateEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+
+
+  // Debug function to track tab changes
+  const handleTabChange = (tab: string) => {
+    console.log('handleTabChange called with:', tab);
+    console.log('Previous activeTab:', activeTab);
+    setActiveTab(tab);
+    console.log('New activeTab set to:', tab);
   };
 
-  const validatePhone = (phone: string): boolean => {
-    // Only allow digits for Australian phone numbers
-    const phoneRegex = /^\d+$/;
-    // Australian mobile numbers are 10 digits (04XX XXX XXX)
-    // Australian landline numbers are 8 digits (XX XXXX XXXX)
-    const digitCount = phone.length;
-    return phoneRegex.test(phone) && (digitCount === 10 || digitCount === 8);
-  };
+  // Debug: Monitor activeTab changes
+  useEffect(() => {
+    console.log('activeTab state changed to:', activeTab);
+  }, [activeTab]);
 
-  const validateTextOnly = (text: string): boolean => {
-    const textRegex = /^[a-zA-Z\s\-\.]+$/;
-    return textRegex.test(text) && text.trim().length > 0;
-  };
-
-  const validateDescription = (description: string): boolean => {
-    return description.trim().length >= 10 && description.trim().length <= 500;
-  };
-
-  const validateAdminForm = (): boolean => {
-    const errors: {[key: string]: string} = {};
-    
-    if (!providerForm.name.trim()) {
-      errors.name = 'Provider name is required';
-    } else if (!validateTextOnly(providerForm.name)) {
-      errors.name = 'Name should contain only letters, spaces, hyphens, and periods';
+  // Handle navigation from marketplace to personal tab
+  useEffect(() => {
+    if (navigateToPersonal) {
+      console.log('navigateToPersonal triggered, changing activeTab to personal');
+      setActiveTab('personal');
+      setNavigateToPersonal(false);
     }
-    
-    if (!providerForm.price.trim()) {
-      errors.price = 'Price is required';
-    } else if (isNaN(parseFloat(providerForm.price)) || parseFloat(providerForm.price) <= 0) {
-      errors.price = 'Price must be a positive number';
-    }
-    
-    if (!providerForm.description.trim()) {
-      errors.description = 'Description is required';
-    } else if (!validateDescription(providerForm.description)) {
-      errors.description = 'Description must be between 10 and 500 characters';
-    }
-    
-    if (providerForm.location.trim() && !validateTextOnly(providerForm.location)) {
-      errors.location = 'Location should contain only letters, spaces, hyphens, and periods';
-    }
-    
-    if (providerForm.contactEmail.trim() && !validateEmail(providerForm.contactEmail)) {
-      errors.contactEmail = 'Please enter a valid email address';
-    }
-    
-    if (providerForm.contactPhone.trim() && !validatePhone(providerForm.contactPhone)) {
-      errors.contactPhone = 'Phone must be 8 digits (landline) or 10 digits (mobile) - numbers only';
-    }
-    
-    setAdminFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const validateUserForm = (): boolean => {
-    const errors: {[key: string]: string} = {};
-    
-    if (!userProviderForm.name.trim()) {
-      errors.name = 'Provider name is required';
-    } else if (!validateTextOnly(userProviderForm.name)) {
-      errors.name = 'Name should contain only letters, spaces, hyphens, and periods';
-    }
-    
-    if (!userProviderForm.price.trim()) {
-      errors.price = 'Price is required';
-    } else if (isNaN(parseFloat(userProviderForm.price)) || parseFloat(userProviderForm.price) <= 0) {
-      errors.price = 'Price must be a positive number';
-    }
-    
-    if (!userProviderForm.description.trim()) {
-      errors.description = 'Description is required';
-    } else if (!validateDescription(userProviderForm.description)) {
-      errors.description = 'Description must be between 10 and 500 characters';
-    }
-    
-    if (userProviderForm.location.trim() && !validateTextOnly(userProviderForm.location)) {
-      errors.location = 'Location should contain only letters, spaces, hyphens, and periods';
-    }
-    
-    if (userProviderForm.contactPhone.trim() && !validatePhone(userProviderForm.contactPhone)) {
-      errors.contactPhone = 'Phone must be 8 digits (landline) or 10 digits (mobile) - numbers only';
-    }
-    
-    setUserFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+  }, [navigateToPersonal]);
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#2E7D32" />
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>PowerGrid</Text>
-        <Text style={styles.headerSubtitle}>Smart Energy Management</Text>
-      </View>
+      <Header title="PowerGrid" subtitle="Smart Energy Management" />
       
       <View style={styles.tabBar}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'marketplace' && styles.activeTab]}
-          onPress={() => setActiveTab('marketplace')}
+          onPress={() => handleTabChange('marketplace')}
         >
           <Text style={[styles.tabText, activeTab === 'marketplace' && styles.activeTabText]}>
             Marketplace
@@ -1749,7 +1060,7 @@ export default function Index() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'storage' && styles.activeTab]}
-          onPress={() => setActiveTab('storage')}
+          onPress={() => handleTabChange('storage')}
         >
           <Text style={[styles.tabText, activeTab === 'storage' && styles.activeTabText]}>
             Storage
@@ -1757,7 +1068,7 @@ export default function Index() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'personal' && styles.activeTab]}
-          onPress={() => setActiveTab('personal')}
+          onPress={() => handleTabChange('personal')}
         >
           <Text style={[styles.tabText, activeTab === 'personal' && styles.activeTabText]}>
             Personal
@@ -1792,9 +1103,127 @@ export default function Index() {
                       ]
                     }
                   ]}>
-      {activeTab === 'marketplace' && renderMarketplace()}
-                    {activeTab === 'storage' && renderStorageCalculator()}
-      {activeTab === 'personal' && renderPersonalData()}
+      {activeTab === 'marketplace' && (
+        <MarketplaceTab
+          // State props
+          activeTab={activeTab}
+          isLoading={isLoading}
+          electricityProviders={electricityProviders}
+          userBalance={userBalance}
+          userPurchases={userPurchases}
+          isAdminMode={isAdminMode}
+          loggedInUser={loggedInUser}
+          userProviderStatus={userProviderStatus}
+          deletingProviderId={deletingProviderId}
+          showProviderModal={showProviderModal}
+          showAddProviderModal={showAddProviderModal}
+          showEditProviderModal={showEditProviderModal}
+          showBecomeProviderModal={showBecomeProviderModal}
+          selectedProvider={selectedProvider}
+          editingProvider={editingProvider}
+          purchaseAmount={purchaseAmount}
+          refreshOffset={refreshOffset}
+          apiStatus={apiStatus}
+          
+          // Form states
+          providerForm={providerForm}
+          userProviderForm={userProviderForm}
+          adminFormErrors={adminFormErrors}
+          userFormErrors={userFormErrors}
+          
+          // Web delete confirmation
+          webDeleteConfirm={webDeleteConfirm}
+          
+          // Handler functions
+          setSelectedProvider={setSelectedProvider}
+          setShowProviderModal={setShowProviderModal}
+          setShowAddProviderModal={setShowAddProviderModal}
+          setShowEditProviderModal={setShowEditProviderModal}
+          setShowBecomeProviderModal={setShowBecomeProviderModal}
+          setEditingProvider={setEditingProvider}
+          setPurchaseAmount={setPurchaseAmount}
+          setProviderForm={setProviderForm}
+          setUserProviderForm={setUserProviderForm}
+          setWebDeleteConfirm={setWebDeleteConfirm}
+          
+          // Form error setter functions
+          setAdminFormErrors={setAdminFormErrors}
+          setUserFormErrors={setUserFormErrors}
+          
+          // API functions
+          checkApiConnection={checkApiConnection}
+          fetchProviders={fetchProviders}
+          createProvider={createProvider}
+          updateProvider={updateProvider}
+          deleteProvider={deleteProvider}
+          
+          // Handler functions
+          handlePurchase={handlePurchase}
+          handleAddProvider={handleAddProvider}
+          handleEditProvider={handleEditProvider}
+          handleDeleteProvider={handleDeleteProvider}
+          confirmDeleteProvider={confirmDeleteProvider}
+          openEditModal={openEditModal}
+          registerAsProvider={registerAsProvider}
+          cancelProviderStatus={cancelProviderStatus}
+          
+          
+          
+          // Tab navigation
+          setActiveTab={setActiveTab}
+          setNavigateToPersonal={setNavigateToPersonal}
+        />
+      )}
+                    {activeTab === 'storage' && (
+                      <StorageTab
+                        // Storage calculator state
+                        storageCapacity={storageCapacity}
+                        dailyUsage={dailyUsage}
+                        setStorageCapacity={setStorageCapacity}
+                        setDailyUsage={setDailyUsage}
+                        
+                        // Solar panel calculator state
+                        solarDailyUsage={solarDailyUsage}
+                        solarSunHours={solarSunHours}
+                        solarPanelCost={solarPanelCost}
+                        solarInstallCost={solarInstallCost}
+                        setSolarDailyUsage={setSolarDailyUsage}
+                        setSolarSunHours={setSolarSunHours}
+                        setSolarPanelCost={setSolarPanelCost}
+                        setSolarInstallCost={setSolarInstallCost}
+                        
+                        // Tab selection
+                        storageTab={storageTab}
+                        setStorageTab={setStorageTab}
+                        
+                        // Calculation results
+                        storageCost={storageCost}
+                        solarResult={solarResult}
+                      />
+                    )}
+                    {activeTab === 'personal' && (
+                      <PersonalTab
+                        // User data
+                        userBalance={userBalance}
+                        userPurchases={userPurchases}
+                        loggedInUser={loggedInUser}
+                        userProviderStatus={userProviderStatus}
+                        electricityProviders={electricityProviders}
+                        
+                        // Login state
+                        loginState={loginState}
+                        setLoginState={setLoginState}
+                        
+                        // Actions
+                        setShowBecomeProviderModal={setShowBecomeProviderModal}
+                        cancelProviderStatus={cancelProviderStatus}
+                        handleLogin={handleLogin}
+                        handleLogout={handleLogout}
+                        
+                        // User data for dashboard
+                        userData={userData}
+                      />
+                    )}
                   </View>
                 </TapGestureHandler>
               </View>
@@ -1815,60 +1244,7 @@ export default function Index() {
         )}
       </GestureHandlerRootView>
 
-      <Modal
-        visible={showProviderModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowProviderModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Purchase Electricity</Text>
-            {selectedProvider && (
-              <>
-                <Text style={styles.modalProvider}>{selectedProvider.name}</Text>
-                <Text style={styles.modalPrice}>${selectedProvider.price}/kWh</Text>
-                <Text style={styles.modalAvailable}>{selectedProvider.available} kWh available</Text>
-                
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Purchase Amount (kWh)</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={purchaseAmount}
-                    onChangeText={setPurchaseAmount}
-                    placeholder="Enter amount"
-                    keyboardType="numeric"
-                  />
-                </View>
-                
-                {purchaseAmount && (
-                  <View style={styles.purchaseSummary}>
-                    <Text style={styles.summaryText}>
-                      Total Cost: ${(parseFloat(purchaseAmount) * selectedProvider.price).toFixed(2)}
-                    </Text>
-                  </View>
-                )}
-                
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity 
-                    style={styles.cancelButton}
-                    onPress={() => setShowProviderModal(false)}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={styles.confirmButton}
-                    onPress={handlePurchase}
-                  >
-                    <Text style={styles.confirmButtonText}>Purchase</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
+
 
       {/* Add Provider Modal */}
       <Modal
@@ -2180,7 +1556,7 @@ export default function Index() {
                     style={styles.input}
                     value={editingProvider.contactPhone}
                     onChangeText={(text) => setEditingProvider({...editingProvider, contactPhone: text})}
-                    placeholder="+1-555-0123"
+                    placeholder="04XX XXX XXX"
                     keyboardType="phone-pad"
                   />
                 </View>
@@ -2380,7 +1756,7 @@ export default function Index() {
                 style={styles.input}
                 value={userProviderForm.contactPhone}
                 onChangeText={(text) => setUserProviderForm({...userProviderForm, contactPhone: text})}
-                placeholder="+1-555-0123"
+                placeholder="04XX XXX XXX"
                 keyboardType="phone-pad"
               />
               <Text style={styles.helperText}>
