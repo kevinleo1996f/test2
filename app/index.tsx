@@ -27,7 +27,7 @@ import {
 } from 'react-native';
 
 // Import styles from separate file for easier debugging
-import { GestureHandlerRootView, PanGestureHandler, PinchGestureHandler, State, TapGestureHandler } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import {
   checkApiConnection,
   createProvider,
@@ -241,81 +241,9 @@ export default function Index() {
 
 
 
-  // ============================================================================
-  // MULTITOUCH GESTURE HANDLERS
-  // ============================================================================
-  // These functions handle advanced touch gestures for enhanced user experience
-  
-  // Advanced zoom state for flexible scaling
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [isZoomed, setIsZoomed] = useState(false);
-  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-  const [lastPanOffset, setLastPanOffset] = useState({ x: 0, y: 0 });
-  
-  // Two-finger tap handler for quick zoom presets
-  const onTwoFingerTap = (event: any) => {
-    if (event.nativeEvent.numberOfPointers === 2) {
-      console.log('🔍 Two-finger tap detected - cycling through zoom levels');
-      
-      // Cycle through zoom levels: 1x → 1.5x → 2x → 1x (limited to 2.5x max)
-      if (zoomLevel === 1) {
-        setZoomLevel(1.5);
-        setIsZoomed(true);
-        console.log('🔍 Zoomed to 1.5x');
-      } else if (zoomLevel === 1.5) {
-        setZoomLevel(2);
-        setIsZoomed(true);
-        console.log('🔍 Zoomed to 2x');
-      } else {
-        setZoomLevel(1);
-        setIsZoomed(false);
-        setPanOffset({ x: 0, y: 0 }); // Reset pan when returning to normal
-        setLastPanOffset({ x: 0, y: 0 });
-        console.log('🔍 Reset to normal size');
-      }
-    }
-  };
-  
-  // Pinch gesture handler for smooth zooming
-  const onPinchGestureEvent = (event: any) => {
-    const scale = event.nativeEvent.scale;
-    // Use a more responsive scale factor for smoother zooming
-    const scaleFactor = 1 + (scale - 1) * 0.3; // Further reduce sensitivity
-    const newZoomLevel = Math.max(0.8, Math.min(2.5, zoomLevel * scaleFactor)); // Limit max zoom to 2.5x
-    
-    if (Math.abs(newZoomLevel - zoomLevel) > 0.01) { // Only update if change is significant
-      setZoomLevel(newZoomLevel);
-      setIsZoomed(newZoomLevel > 1);
-      
-      // Reset pan if zooming out to normal
-      if (newZoomLevel <= 1) {
-        setPanOffset({ x: 0, y: 0 });
-        setLastPanOffset({ x: 0, y: 0 });
-      }
-    }
-  };
-  
   // Pull-to-refresh state
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshOffset, setRefreshOffset] = useState(0);
-  
-  // Pan gesture handler for moving around when zoomed
-  const onPanGestureEvent = (event: any) => {
-    if (zoomLevel > 1) {
-      // Handle panning when zoomed
-      const newX = lastPanOffset.x + event.nativeEvent.translationX;
-      const newY = lastPanOffset.y + event.nativeEvent.translationY;
-      
-      // Limit panning to prevent content from going too far off-screen
-      const maxPanX = (zoomLevel - 1) * 80; // Reduce pan limits
-      const maxPanY = (zoomLevel - 1) * 80;
-      
-      setPanOffset({
-        x: Math.max(-maxPanX, Math.min(maxPanX, newX)),
-        y: Math.max(-maxPanY, Math.min(maxPanY, newY))
-      });
-    }
-  };
   
   // Separate handler for pull-to-refresh that doesn't interfere with scrolling
   const onPullToRefresh = (event: any) => {
@@ -328,13 +256,10 @@ export default function Index() {
   // Pan gesture state change handler
   const onPanStateChange = (event: any) => {
     if (event.nativeEvent.state === State.END) {
-      if (zoomLevel > 1) {
-        setLastPanOffset(panOffset);
-      } else if (activeTab === 'marketplace' && refreshOffset > 50) {
-        // Trigger refresh if pulled down far enough
+      if (activeTab === 'marketplace' && refreshOffset > 50) {
         handlePullToRefresh();
       }
-      setRefreshOffset(0); // Reset refresh offset
+      setRefreshOffset(0);
     }
   };
   
@@ -357,13 +282,7 @@ export default function Index() {
   
 
   
-  // Reset zoom function
-  const resetZoom = () => {
-    setZoomLevel(1);
-    setIsZoomed(false);
-    setPanOffset({ x: 0, y: 0 });
-    setLastPanOffset({ x: 0, y: 0 });
-  };
+  // (Zoom functionality removed)
 
   // Initialize API connection on component mount
   useEffect(() => {
@@ -654,14 +573,6 @@ export default function Index() {
     setShowEditProviderModal(true);
   };
 
-
-
-
-
-
-
-
-
   // Check if user is already a provider
   const checkUserProviderStatus = async () => {
     try {
@@ -780,8 +691,6 @@ export default function Index() {
     );
   };
 
-
-
   // Debug function to track tab changes
   const handleTabChange = (tab: string) => {
     console.log('handleTabChange called with:', tab);
@@ -837,31 +746,12 @@ export default function Index() {
       
       
       
-      {/* Wrap content with gesture handler for multitouch support */}
+      {/* Wrap content with gesture handler root (zoom removed) */}
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <PinchGestureHandler onGestureEvent={onPinchGestureEvent}>
+        <View style={{ flex: 1 }}>
           <View style={{ flex: 1 }}>
-            <PanGestureHandler 
-              onGestureEvent={onPanGestureEvent}
-              onHandlerStateChange={onPanStateChange}
-              enabled={zoomLevel > 1}
-              shouldCancelWhenOutside={true}
-            >
+            <View style={{ flex: 1 }}>
               <View style={{ flex: 1 }}>
-                <TapGestureHandler
-                  onHandlerStateChange={onTwoFingerTap}
-                  numberOfTaps={1}
-                >
-                  <View style={[
-                    { flex: 1 },
-                    {
-                      transform: [
-                        { translateX: panOffset.x },
-                        { translateY: panOffset.y },
-                        { scale: zoomLevel }
-                      ]
-                    }
-                  ]}>
       {activeTab === 'marketplace' && (
         <MarketplaceTab
           // State props
@@ -990,19 +880,17 @@ export default function Index() {
                         userData={userData}
                       />
                     )}
-                  </View>
-                </TapGestureHandler>
               </View>
-            </PanGestureHandler>
+            </View>
           </View>
-        </PinchGestureHandler>
+        </View>
         
         {/* Separate pull-to-refresh handler for marketplace */}
         {activeTab === 'marketplace' && (
           <PanGestureHandler
             onGestureEvent={onPullToRefresh}
             onHandlerStateChange={onPanStateChange}
-            enabled={zoomLevel === 1} // Only enable when not zoomed
+            enabled={true}
             shouldCancelWhenOutside={false}
           >
             <View style={styles.pullToRefreshOverlay} />
