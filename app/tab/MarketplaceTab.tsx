@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-  Modal,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Modal,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { styles } from '../styles';
 
@@ -56,12 +56,19 @@ interface MarketplaceTabProps {
   setAdminFormErrors: (errors: {[key: string]: string}) => void;
   setUserFormErrors: (errors: {[key: string]: string}) => void;
   
+  // API configuration
+  API_ORIGIN: string;
+  API_BASE_URL: string;
+  setApiStatus: (status: string) => void;
+  setIsLoading: (loading: boolean) => void;
+  setElectricityProviders: (providers: any[]) => void;
+  
   // API functions
-  checkApiConnection: () => Promise<boolean>;
-  fetchProviders: () => Promise<void>;
-  createProvider: (providerData: any) => Promise<any>;
-  updateProvider: (providerId: string, providerData: any) => Promise<any>;
-  deleteProvider: (providerId: string) => Promise<boolean>;
+  checkApiConnection: (API_ORIGIN: string, setApiStatus: (status: string) => void) => Promise<boolean>;
+  fetchProviders: (API_BASE_URL: string, setIsLoading: (loading: boolean) => void, setElectricityProviders: (providers: any[]) => void) => Promise<void>;
+  createProvider: (API_BASE_URL: string, providerData: any, refreshCallback: () => Promise<void>) => Promise<any>;
+  updateProvider: (API_BASE_URL: string, providerId: string, providerData: any, refreshCallback: () => Promise<void>) => Promise<any>;
+  deleteProvider: (API_BASE_URL: string, providerId: string) => Promise<boolean>;
   
   // Handler functions
   handlePurchase: () => Promise<void>;
@@ -125,6 +132,13 @@ export default function MarketplaceTab({
   // Form error setter functions
   setAdminFormErrors,
   setUserFormErrors,
+  
+  // API configuration
+  API_ORIGIN,
+  API_BASE_URL,
+  setApiStatus,
+  setIsLoading,
+  setElectricityProviders,
   
   // API functions
   checkApiConnection,
@@ -293,9 +307,9 @@ export default function MarketplaceTab({
             <TouchableOpacity 
               style={styles.retryButton}
               onPress={async () => {
-                const isConnected = await checkApiConnection();
-                if (isConnected) {
-                  await fetchProviders();
+                      const isConnected = await checkApiConnection(API_ORIGIN, setApiStatus);
+      if (isConnected) {
+        await fetchProviders(API_BASE_URL, setIsLoading, setElectricityProviders);
                 }
               }}
             >
