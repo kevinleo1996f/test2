@@ -28,6 +28,15 @@ import {
 
 // Import styles from separate file for easier debugging
 import { GestureHandlerRootView, PanGestureHandler, PinchGestureHandler, State, TapGestureHandler } from 'react-native-gesture-handler';
+import {
+  checkApiConnection,
+  createProvider,
+  createPurchase,
+  deleteProvider,
+  fetchProviders,
+  fetchUserPurchases,
+  updateProvider
+} from './components/crud';
 import Header from './components/Header';
 import { validateAdminForm, validateUserForm } from './components/validation';
 import { styles } from './styles';
@@ -230,257 +239,7 @@ export default function Index() {
     setIsAdminMode(false);
   };
 
-  // API Functions
-  const checkApiConnection = async () => {
-    try {
-      console.log('🔍 Checking API connection...');
-      const response = await fetch(`${API_ORIGIN}/health`);
-      console.log('📥 Health check response status:', response.status);
-      const data = await response.json();
-      console.log('📥 Health check response data:', data);
-      
-      if (data.status === 'OK') {
-        console.log('✅ API connection successful');
-        setApiStatus('connected');
-        return true;
-      } else {
-        console.log('❌ API health check failed:', data);
-        setApiStatus('disconnected');
-        return false;
-      }
-    } catch (error) {
-      if (error instanceof Error) {
-        console.log('❌ API not connected:', error.message);
-      } else {
-        console.log('❌ API not connected:', error);
-      }
-      setApiStatus('disconnected');
-      return false;
-    }
-  };
 
-  const fetchProviders = async (retryCount = 0) => {
-    try {
-      console.log(`🔄 Fetching providers... (attempt ${retryCount + 1})`);
-      setIsLoading(true);
-      
-      // Add timeout to prevent hanging requests
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
-      const response = await fetch(`${API_BASE_URL}/providers`, {
-        signal: controller.signal,
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        }
-      });
-      
-      clearTimeout(timeoutId);
-      
-      console.log('📥 Providers response status:', response.status);
-      
-      if (!response.ok) {
-        console.log('❌ HTTP error:', response.status, response.statusText);
-        if (retryCount < 2) {
-          console.log(`🔄 Retrying... (${retryCount + 1}/3)`);
-          setTimeout(() => fetchProviders(retryCount + 1), 1000);
-          return;
-        }
-        setElectricityProviders([]);
-        return;
-      }
-      
-      const data = await response.json();
-      console.log('📥 Providers response data:', data);
-      
-      if (data.success) {
-        const providers = data.data || [];
-        setElectricityProviders(providers);
-        console.log('✅ Providers loaded from database:', providers.length);
-        console.log('📋 Provider names:', providers.map((p: any) => p.name));
-        console.log('📋 Provider IDs:', providers.map((p: any) => p._id));
-        console.log('📋 isActive status:', providers.map((p: any) => p.isActive));
-      } else {
-        console.log('❌ Failed to load providers from database:', data.error);
-        if (retryCount < 2) {
-          console.log(`🔄 Retrying... (${retryCount + 1}/3)`);
-          setTimeout(() => fetchProviders(retryCount + 1), 1000);
-          return;
-        }
-        setElectricityProviders([]);
-      }
-    } catch (error) {
-      console.log('❌ Failed to fetch providers from database:', error);
-      if (error instanceof Error) {
-        console.log('❌ Error message:', error.message);
-        if (error.name === 'AbortError') {
-          console.log('❌ Request timed out');
-        }
-      }
-      
-      if (retryCount < 2) {
-        console.log(`🔄 Retrying... (${retryCount + 1}/3)`);
-        setTimeout(() => fetchProviders(retryCount + 1), 1000);
-        return;
-      }
-      
-      setElectricityProviders([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const createPurchase = async (providerId: string, amount: number, cost: number) => {
-    try {
-      const purchaseData = {
-        userId: 'user123', // You can make this dynamic
-        providerId: providerId,
-        amount: amount,
-        paymentMethod: 'credit_card',
-        notes: 'Purchase from mobile app'
-      };
-
-      const response = await fetch(`${API_BASE_URL}/purchases`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(purchaseData),
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        console.log('✅ Purchase saved to database:', data.data);
-        return data.data;
-      } else {
-        console.log('❌ Failed to save purchase:', data.error);
-        return null;
-      }
-    } catch (error) {
-      if (error instanceof Error) {
-        console.log('❌ API error during purchase:', error.message);
-      } else {
-        console.log('❌ API error during purchase:', error);
-      }
-      return null;
-    }
-  };
-
-  const fetchUserPurchases = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/purchases/user123`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setUserPurchases(data.data);
-        console.log('✅ User purchases loaded:', data.data.length);
-      }
-    } catch (error) {
-      if (error instanceof Error) {
-        console.log('❌ Failed to fetch user purchases:', error.message);
-      } else {
-        console.log('❌ Failed to fetch user purchases:', error);
-      }
-    }
-  };
-
-  // CRUD Functions for Providers
-  const createProvider = async (providerData: any) => {
-    try {
-      console.log('📤 Creating provider with data:', providerData);
-      console.log('🌐 API URL:', `${API_BASE_URL}/providers`);
-      
-      const response = await fetch(`${API_BASE_URL}/providers`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(providerData),
-      });
-
-      console.log('📥 Response status:', response.status);
-      const data = await response.json();
-      console.log('📥 Response data:', data);
-      
-      if (data.success) {
-        console.log('✅ Provider created:', data.data);
-        await fetchProviders(); // Refresh the list
-        return data.data;
-      } else {
-        console.log('❌ Failed to create provider:', data.error);
-        return null;
-      }
-    } catch (error) {
-      if (error instanceof Error) {
-        console.log('❌ API error during provider creation:', error.message);
-      } else {
-        console.log('❌ API error during provider creation:', error);
-      }
-      return null;
-    }
-  };
-
-  const updateProvider = async (providerId: string, providerData: any) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/providers/${providerId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(providerData),
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        console.log('✅ Provider updated:', data.data);
-        await fetchProviders(); // Refresh the list
-        return data.data;
-      } else {
-        console.log('❌ Failed to update provider:', data.error);
-        return null;
-      }
-    } catch (error) {
-      if (error instanceof Error) {
-        console.log('❌ API error during provider update:', error.message);
-      } else {
-        console.log('❌ API error during provider update:', error);
-      }
-      return null;
-    }
-  };
-
-  const deleteProvider = async (providerId: string) => {
-    try {
-      const url = `${API_BASE_URL}/providers/${providerId}`;
-      console.log('🗑️ [deleteProvider] Sending DELETE request to:', url);
-      const response = await fetch(url, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      console.log('📥 [deleteProvider] Response status:', response.status, response.statusText);
-      const data = await response.json().catch(() => null);
-      console.log('📥 [deleteProvider] Response body:', data);
-      if (!response.ok) {
-        console.log('❌ [deleteProvider] Delete failed:', response.status, response.statusText);
-        return false;
-      }
-      if (data && data.success) {
-        console.log('✅ [deleteProvider] Provider deleted successfully');
-        return true;
-      } else {
-        console.log('❌ [deleteProvider] Delete failed:', data?.error);
-        return false;
-      }
-    } catch (error) {
-      console.log('❌ [deleteProvider] Error:', error);
-      return false;
-    }
-  };
 
   // ============================================================================
   // MULTITOUCH GESTURE HANDLERS
@@ -587,7 +346,7 @@ export default function Index() {
     console.log('🔄 Pull-to-refresh triggered');
     
     try {
-      await fetchProviders();
+      await fetchProviders(API_BASE_URL, setIsLoading, setElectricityProviders);
       Alert.alert('Success', 'Marketplace refreshed!');
     } catch (error) {
       Alert.alert('Error', 'Failed to refresh marketplace');
@@ -609,10 +368,10 @@ export default function Index() {
   // Initialize API connection on component mount
   useEffect(() => {
     const initializeApp = async () => {
-      const isConnected = await checkApiConnection();
+             const isConnected = await checkApiConnection(API_ORIGIN, setApiStatus);
       if (isConnected) {
-        await fetchProviders();
-        await fetchUserPurchases();
+        await fetchProviders(API_BASE_URL, setIsLoading, setElectricityProviders);
+                 await fetchUserPurchases(API_BASE_URL, setUserPurchases);
         if (loggedInUser === 'user') {
           await checkUserProviderStatus();
         }
@@ -676,7 +435,7 @@ export default function Index() {
     // Try to save to database first
     let savedPurchase = null;
     if (apiStatus === 'connected') {
-      savedPurchase = await createPurchase(selectedProvider._id || selectedProvider.id, amount, cost);
+             savedPurchase = await createPurchase(API_BASE_URL, selectedProvider._id || selectedProvider.id, amount, cost);
     }
 
     // Create local purchase object
@@ -704,7 +463,7 @@ export default function Index() {
     
     // Refresh providers to update available capacity
     if (apiStatus === 'connected') {
-      await fetchProviders();
+      await fetchProviders(API_BASE_URL, setIsLoading, setElectricityProviders);
     }
   };
 
@@ -757,7 +516,7 @@ export default function Index() {
     console.log('📤 Sending provider data:', providerData);
     
     try {
-      const result = await createProvider(providerData);
+      const result = await createProvider(API_BASE_URL, providerData, () => fetchProviders(API_BASE_URL, setIsLoading, setElectricityProviders));
       
       if (result) {
         console.log('✅ Provider added successfully:', result);
@@ -792,7 +551,7 @@ export default function Index() {
         if (adminFormErrors.contactPhone) {
           setAdminFormErrors({...adminFormErrors, contactPhone: ''});
         }
-        await fetchProviders(); // Refresh provider list
+        await fetchProviders(API_BASE_URL, setIsLoading, setElectricityProviders); // Refresh provider list
       } else {
         console.log('❌ Failed to add provider');
         Alert.alert('Error', 'Failed to add provider. Please check your connection and try again.');
@@ -822,7 +581,7 @@ export default function Index() {
     console.log('📤 Sending update data:', providerData);
     
     try {
-      const result = await updateProvider(editingProvider._id, providerData);
+      const result = await updateProvider(API_BASE_URL, editingProvider._id, providerData, () => fetchProviders(API_BASE_URL, setIsLoading, setElectricityProviders));
       
       if (result) {
         console.log('✅ Provider updated successfully:', result);
@@ -848,7 +607,7 @@ export default function Index() {
     setDeletingProviderId(providerId);
     console.log('🗑️ [handleDeleteProvider] Attempting to delete provider with ID:', providerId);
     try {
-      const success = await deleteProvider(providerId);
+      const success = await deleteProvider(API_BASE_URL, providerId);
       console.log('🗑️ [handleDeleteProvider] deleteProvider returned:', success);
       if (success) {
         setElectricityProviders(prevProviders => 
@@ -943,7 +702,7 @@ export default function Index() {
     };
 
     try {
-      const result = await createProvider(providerData);
+      const result = await createProvider(API_BASE_URL, providerData, () => fetchProviders(API_BASE_URL, setIsLoading, setElectricityProviders));
       
       if (result) {
         console.log('✅ User registered as provider:', result);
@@ -975,8 +734,8 @@ export default function Index() {
         if (userFormErrors.contactPhone) {
           setUserFormErrors({...userFormErrors, contactPhone: ''});
         }
-        Alert.alert('Success', 'You are now registered as a provider!');
-        await fetchProviders(); // Refresh provider list
+        Alert.alert('Success', 'You are now registered as provider!');
+        await fetchProviders(API_BASE_URL, setIsLoading, setElectricityProviders); // Refresh provider list
       } else {
         Alert.alert('Error', 'Failed to register as provider. Please try again.');
       }
@@ -1003,11 +762,11 @@ export default function Index() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const success = await deleteProvider(userProviderStatus._id);
+              const success = await deleteProvider(API_BASE_URL, userProviderStatus._id);
               if (success) {
                 setUserProviderStatus(null);
                 Alert.alert('Success', 'Provider status cancelled successfully!');
-                await fetchProviders(); // Refresh provider list
+                await fetchProviders(API_BASE_URL, setIsLoading, setElectricityProviders); // Refresh provider list
               } else {
                 Alert.alert('Error', 'Failed to cancel provider status. Please try again.');
               }
@@ -1150,12 +909,19 @@ export default function Index() {
           setAdminFormErrors={setAdminFormErrors}
           setUserFormErrors={setUserFormErrors}
           
-          // API functions
-          checkApiConnection={checkApiConnection}
-          fetchProviders={fetchProviders}
-          createProvider={createProvider}
-          updateProvider={updateProvider}
-          deleteProvider={deleteProvider}
+                     // API configuration
+           API_ORIGIN={API_ORIGIN}
+           API_BASE_URL={API_BASE_URL}
+           setApiStatus={setApiStatus}
+           setIsLoading={setIsLoading}
+           setElectricityProviders={setElectricityProviders}
+           
+           // API functions
+           checkApiConnection={checkApiConnection}
+           fetchProviders={fetchProviders}
+           createProvider={createProvider}
+           updateProvider={updateProvider}
+           deleteProvider={deleteProvider}
           
           // Handler functions
           handlePurchase={handlePurchase}
