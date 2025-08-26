@@ -178,6 +178,24 @@ export default function MarketplaceTab({
   
   // Custom modal state for login required
   const [showLoginRequiredModal, setShowLoginRequiredModal] = useState(false);
+  // Provider detail modal (only for logged-in users)
+  const [showProviderDetail, setShowProviderDetail] = useState(false);
+  const [detailProvider, setDetailProvider] = useState<any | null>(null);
+  const formatDateTime = (raw: any): string => {
+    if (!raw) return '—';
+    try {
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
+      }
+    } catch {}
+    return String(raw);
+  };
   
   // Debug: Monitor modal state
   useEffect(() => {
@@ -223,7 +241,18 @@ export default function MarketplaceTab({
         </View>
       ) : electricityProviders.length > 0 ? (
         electricityProviders.map((provider, index) => (
-          <View key={provider._id || provider.id || `${provider.name}-${index}`} style={styles.providerCard}>
+          <TouchableOpacity
+            key={provider._id || provider.id || `${provider.name}-${index}`}
+            style={styles.providerCard}
+            activeOpacity={0.9}
+            onPress={() => {
+              if (loggedInUser) {
+                setDetailProvider(provider);
+                setShowProviderDetail(true);
+              }
+            }}
+            disabled={!loggedInUser}
+          >
             <View style={styles.providerInfo}>
               <Text style={styles.providerName}>{provider.name}</Text>
               <Text style={styles.providerType}>{provider.type} Energy</Text>
@@ -293,28 +322,25 @@ export default function MarketplaceTab({
                           >
                             <Text style={styles.buyButtonText}>Buy</Text>
                           </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[styles.editButton]}
+                          <TouchableOpacity 
+                            style={[styles.smallButton, isSaved ? { backgroundColor: '#2E7D32' } : null]}
                             onPress={() => onToggleSaveProvider(provider)}
                           >
-                            <Text style={styles.editButtonText}>{isSaved ? 'Saved' : 'Save'}</Text>
+                            <Text style={[styles.smallButtonText, isSaved ? { color: '#fff' } : null]}>{isSaved ? 'Saved' : 'Save'}</Text>
                           </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[styles.editButton]}
+                          <TouchableOpacity 
+                            style={styles.smallButton}
                             onPress={() => onCreatePriceAlert(provider)}
                           >
-                            <Text style={styles.editButtonText}>Alert</Text>
+                            <Text style={styles.smallButtonText}>Alert</Text>
                           </TouchableOpacity>
                         </>
                       ) : (
                         <TouchableOpacity 
-                          style={[styles.buyButton, { backgroundColor: '#ccc' }]}
-                          onPress={() => {
-                            console.log('Login to Buy button pressed');
-                            setShowLoginRequiredModal(true);
-                          }}
+                          style={styles.buyButton}
+                          onPress={() => setShowLoginRequiredModal(true)}
                         >
-                          <Text style={[styles.buyButtonText, { color: '#666' }]}>Login to Buy</Text>
+                          <Text style={styles.buyButtonText}>Login to Buy</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -322,30 +348,13 @@ export default function MarketplaceTab({
                 })()
               )}
             </View>
-          </View>
+          </TouchableOpacity>
         ))
       ) : (
-        <View style={styles.noDataCard}>
-          <Text style={styles.noDataTitle}>No Providers Available</Text>
-          <Text style={styles.noDataText}>
-            {apiStatus === 'connected' 
-              ? 'No electricity providers found in the database. Please check back later.'
-              : 'Database connection required. Please start the server to view providers.'
-            }
-          </Text>
-          {apiStatus === 'disconnected' && (
-            <TouchableOpacity 
-              style={styles.retryButton}
-              onPress={async () => {
-                      const isConnected = await checkApiConnection(API_ORIGIN, setApiStatus);
-      if (isConnected) {
-        await fetchProviders(API_BASE_URL, setIsLoading, setElectricityProviders);
-                }
-              }}
-            >
-              <Text style={styles.retryButtonText}>Retry Connection</Text>
-            </TouchableOpacity>
-          )}
+        <View style={styles.emptyState}>
+          <Ionicons name="business-outline" size={48} color="#ccc" />
+          <Text style={styles.emptyStateText}>No providers available</Text>
+          <Text style={styles.emptyStateSubtext}>Please check back later</Text>
         </View>
       )}
 
@@ -373,6 +382,66 @@ export default function MarketplaceTab({
           ))}
         </View>
       )}
+
+      {/* Provider Detail Modal (only when logged in) */}
+      <Modal visible={!!loggedInUser && showProviderDetail} transparent animationType="fade" onRequestClose={() => setShowProviderDetail(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 12, width: '100%', padding: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <Ionicons name="business" size={22} color="#2E7D32" />
+              <Text style={{ fontSize: 18, fontWeight: '600', marginLeft: 8 }}>Provider Details</Text>
+            </View>
+            {detailProvider ? (
+              <View>
+                <View style={{ marginVertical: 6 }}>
+                  <Text style={{ color: '#666', fontSize: 12 }}>Provider Name</Text>
+                  <Text style={{ fontSize: 16 }}>{detailProvider.name}</Text>
+                </View>
+                <View style={{ marginVertical: 6 }}>
+                  <Text style={{ color: '#666', fontSize: 12 }}>Type</Text>
+                  <Text style={{ fontSize: 16 }}>{detailProvider.type}</Text>
+                </View>
+                <View style={{ marginVertical: 6 }}>
+                  <Text style={{ color: '#666', fontSize: 12 }}>Price</Text>
+                  <Text style={{ fontSize: 16 }}>${Number(detailProvider.price ?? 0).toFixed(2)}/kWh</Text>
+                </View>
+                <View style={{ marginVertical: 6 }}>
+                  <Text style={{ color: '#666', fontSize: 12 }}>Rating</Text>
+                  <Text style={{ fontSize: 16 }}>{detailProvider.rating}</Text>
+                </View>
+                <View style={{ marginVertical: 6 }}>
+                  <Text style={{ color: '#666', fontSize: 12 }}>Available</Text>
+                  <Text style={{ fontSize: 16 }}>{detailProvider.available} kWh</Text>
+                </View>
+                <View style={{ marginVertical: 6 }}>
+                  <Text style={{ color: '#666', fontSize: 12 }}>Description</Text>
+                  <Text style={{ fontSize: 16 }}>{detailProvider.description || '—'}</Text>
+                </View>
+                <View style={{ marginVertical: 6 }}>
+                  <Text style={{ color: '#666', fontSize: 12 }}>Location</Text>
+                  <Text style={{ fontSize: 16 }}>{detailProvider.location || detailProvider.city || '—'}</Text>
+                </View>
+                <View style={{ marginVertical: 6 }}>
+                  <Text style={{ color: '#666', fontSize: 12 }}>Contact Email</Text>
+                  <Text style={{ fontSize: 16 }}>{detailProvider.contactEmail || detailProvider.email || '—'}</Text>
+                </View>
+                <View style={{ marginVertical: 6 }}>
+                  <Text style={{ color: '#666', fontSize: 12 }}>Contact Phone</Text>
+                  <Text style={{ fontSize: 16 }}>{detailProvider.contactPhone || detailProvider.phone || '—'}</Text>
+                </View>
+                <View style={{ marginVertical: 6 }}>
+                  <Text style={{ color: '#666', fontSize: 12 }}>Created At</Text>
+                  <Text style={{ fontSize: 16 }}>{formatDateTime(detailProvider.createdAt || detailProvider.created_at)}</Text>
+                </View>
+              </View>
+            ) : null}
+            <TouchableOpacity style={{ marginTop: 12, backgroundColor: '#2E7D32', paddingVertical: 10, borderRadius: 8, alignItems: 'center' }} onPress={() => setShowProviderDetail(false)}>
+              <Text style={{ color: '#fff', fontWeight: '600' }}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </ScrollView>
   );
 
