@@ -2,11 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
   Alert,
+  Animated,
+  Easing,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View
 } from 'react-native';
 import { loadPriceAlerts, loadSavedProviders, removePriceAlert, toggleSaveProvider as spToggleSaveProvider, upsertPriceAlert, type PriceAlert, type PriceAlertDirection, type SavedProvider } from '../components/savedProviders';
@@ -60,6 +66,43 @@ export default function PersonalTab({
   const [alerts, setAlerts] = React.useState<PriceAlert[]>([]);
   const [showAdminActions, setShowAdminActions] = React.useState(true);
   const [showActiveProviders, setShowActiveProviders] = React.useState(true);
+  // Login avatar animation state
+  const [isTyping, setIsTyping] = React.useState(false);
+  const [usernameFocused, setUsernameFocused] = React.useState(false);
+  const [passwordFocused, setPasswordFocused] = React.useState(false);
+  const [showMask, setShowMask] = React.useState(false);
+  const loginScrollRef = React.useRef<ScrollView | null>(null);
+  const avatarScale = React.useRef(new Animated.Value(1)).current;
+  const handsTranslateY = React.useRef(new Animated.Value(50)).current; // reuse for mask
+  const handsOpacity = React.useRef(new Animated.Value(0)).current; // reuse for mask
+ 
+  // Derive typing state from focus or non-empty values
+  React.useEffect(() => {
+    const typing = usernameFocused || passwordFocused || !!(loginState.username && loginState.username.length) || !!(loginState.password && loginState.password.length);
+    setIsTyping(typing);
+  }, [usernameFocused, passwordFocused, loginState.username, loginState.password]);
+
+  React.useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    if (isTyping) {
+      setShowMask(true);
+      Animated.parallel([
+        Animated.spring(avatarScale, { toValue: 1.02, friction: 6, tension: 90, useNativeDriver: true }),
+        Animated.timing(handsTranslateY, { toValue: -12, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(handsOpacity, { toValue: 1, duration: 240, useNativeDriver: true })
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.spring(avatarScale, { toValue: 1, friction: 6, tension: 90, useNativeDriver: true }),
+        Animated.timing(handsTranslateY, { toValue: 50, duration: 260, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(handsOpacity, { toValue: 0, duration: 200, useNativeDriver: true })
+      ]).start(() => {
+        timeoutId = setTimeout(() => setShowMask(false), 40);
+      });
+    }
+    return () => { if (timeoutId) clearTimeout(timeoutId); };
+  }, [isTyping, handsTranslateY, handsOpacity, avatarScale]);
+
   const [showAlertEditor, setShowAlertEditor] = React.useState(false);
   const [editingAlert, setEditingAlert] = React.useState<PriceAlert | null>(null);
   const [editorProviderId, setEditorProviderId] = React.useState('');
@@ -175,35 +218,93 @@ export default function PersonalTab({
   const renderPersonalData = () => {
     if (!loggedInUser) {
       return (
-        <View style={styles.personalCard}>
-          <Text style={styles.sectionTitle}>Login</Text>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Username</Text>
-            <TextInput
-              style={styles.input}
-              value={loginState.username}
-              onChangeText={text => setLoginState({ ...loginState, username: text })}
-              placeholder="Enter username"
-              autoCapitalize="none"
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              value={loginState.password}
-              onChangeText={text => setLoginState({ ...loginState, password: text })}
-              placeholder="Enter password"
-              secureTextEntry
-            />
-          </View>
-          {loginState.error ? (
-            <Text style={{ color: 'red', marginBottom: 10 }}>{loginState.error}</Text>
-          ) : null}
-          <TouchableOpacity style={styles.actionButton} onPress={handleLogin}>
-            <Text style={styles.actionButtonText}>Login</Text>
-          </TouchableOpacity>
-        </View>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0} style={{ flex: 1 }}>
+          <ScrollView
+            ref={loginScrollRef}
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: passwordFocused ? 160 : 24 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setUsernameFocused(false); setPasswordFocused(false); }} accessible={false}>
+              <View style={styles.personalCard}>
+            {/* Animated Login Avatar (Boy head; hands cover eyes when typing) */}
+            <View style={{ alignItems: 'center', marginBottom: 14 }}>
+              <Animated.View style={{ width: 160, height: 160, borderRadius: 80, overflow: 'hidden', backgroundColor: '#FFF', transform: [{ scale: avatarScale }], borderWidth: 2, borderColor: '#C8E6C9', position: 'relative', alignItems: 'center', justifyContent: 'center' }}>
+                {/* Head */}
+                <View style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: '#F5D7C6', alignItems: 'center', justifyContent: 'center' }}>
+                  {/* Hair */}
+                  <View style={{ position: 'absolute', top: -4, width: 120, height: 52, borderTopLeftRadius: 60, borderTopRightRadius: 60, backgroundColor: '#2E2E2E' }} />
+                  {/* Eyes */}
+                  <View style={{ position: 'absolute', top: 58, flexDirection: 'row' }}>
+                    <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: '#FFFFFF', marginHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E0E0E0' }}>
+                      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#4A90E2' }} />
+                    </View>
+                    <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: '#FFFFFF', marginHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E0E0E0' }}>
+                      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#4A90E2' }} />
+                    </View>
+                  </View>
+                  {/* Mouth */}
+                  <View style={{ position: 'absolute', top: 84, width: 28, height: 14, borderBottomLeftRadius: 14, borderBottomRightRadius: 14, backgroundColor: '#E89AA6' }} />
+                </View>
+                {showMask && (
+                  <>
+                    {/* Mask body (thinner and lower) */}
+                    <Animated.View pointerEvents="none" style={{ position: 'absolute', top: 88, left: 16, right: 16, height: 20, borderRadius: 10, backgroundColor: '#1F2A44', opacity: handsOpacity, transform: [{ translateY: handsTranslateY }], zIndex: 5 }} />
+                    {/* Mask highlight */}
+                    <Animated.View pointerEvents="none" style={{ position: 'absolute', top: 92, left: 22, right: 22, height: 4, borderRadius: 2, backgroundColor: '#2F3B58', opacity: handsOpacity, transform: [{ translateY: handsTranslateY }], zIndex: 6 }} />
+                    {/* Straps (aligned with mask center) */}
+                    <Animated.View pointerEvents="none" style={{ position: 'absolute', top: 102, left: 6, width: 28, height: 4, borderRadius: 2, backgroundColor: '#1F2A44', opacity: handsOpacity, transform: [{ translateY: handsTranslateY }], zIndex: 4 }} />
+                    <Animated.View pointerEvents="none" style={{ position: 'absolute', top: 102, right: 6, width: 28, height: 4, borderRadius: 2, backgroundColor: '#1F2A44', opacity: handsOpacity, transform: [{ translateY: handsTranslateY }], zIndex: 4 }} />
+                  </>
+                )}
+              </Animated.View>
+            </View>
+            <Text style={[styles.sectionTitle, { textAlign: 'center', alignSelf: 'center' }]}>Login</Text>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Username</Text>
+              <TextInput
+                style={styles.input}
+                value={loginState.username}
+                onChangeText={text => {
+                  setLoginState({ ...loginState, username: text });
+                }}
+                placeholder="Enter username"
+                autoCapitalize="none"
+                onFocus={() => setUsernameFocused(true)}
+                onBlur={() => setUsernameFocused(false)}
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Password</Text>
+              <TextInput
+                style={styles.input}
+                value={loginState.password}
+                onChangeText={text => {
+                  setLoginState({ ...loginState, password: text });
+                }}
+                placeholder="Enter password"
+                secureTextEntry
+                onFocus={() => {
+                  setPasswordFocused(true);
+                  setTimeout(() => loginScrollRef.current?.scrollTo({ y: 200, animated: true }), 50);
+                }}
+                onBlur={() => {
+                  setPasswordFocused(false);
+                  setTimeout(() => loginScrollRef.current?.scrollTo({ y: 0, animated: true }), 50);
+                }}
+              />
+            </View>
+            {loginState.error ? (
+              <Text style={{ color: 'red', marginBottom: 10 }}>{loginState.error}</Text>
+            ) : null}
+            <TouchableOpacity style={styles.actionButton} onPress={handleLogin}>
+              <Text style={styles.actionButtonText}>Login</Text>
+            </TouchableOpacity>
+            {passwordFocused ? <View style={{ height: 100 }} /> : null}
+              </View>
+            </TouchableWithoutFeedback>
+          </ScrollView>
+        </KeyboardAvoidingView>
       );
     }
     

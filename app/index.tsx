@@ -469,7 +469,7 @@ export default function Index() {
              Alert.alert('Price Alerts', msg);
            }
          } catch {}
-       }
+    }
   };
 
   const storageCost = calculateStorageCost();
