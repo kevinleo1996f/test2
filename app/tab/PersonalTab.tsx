@@ -1,13 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
-    Alert,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Modal,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
+import { loadPriceAlerts, loadSavedProviders, removePriceAlert, toggleSaveProvider as spToggleSaveProvider, upsertPriceAlert, type PriceAlert, type PriceAlertDirection, type SavedProvider } from '../components/savedProviders';
 import { styles } from '../styles';
 
 interface PersonalTabProps {
@@ -17,6 +19,7 @@ interface PersonalTabProps {
   loggedInUser: 'admin' | 'user' | null;
   userProviderStatus: any;
   electricityProviders: any[];
+  setSavedProviderIds?: (ids: string[]) => void;
   
   // Login state
   loginState: { username: string; password: string; error: string };
@@ -39,6 +42,7 @@ export default function PersonalTab({
   loggedInUser,
   userProviderStatus,
   electricityProviders,
+  setSavedProviderIds,
   
   // Login state
   loginState,
@@ -53,6 +57,118 @@ export default function PersonalTab({
   // User data for dashboard
   userData
 }: PersonalTabProps) {
+  const [alerts, setAlerts] = React.useState<PriceAlert[]>([]);
+  const [showAlertEditor, setShowAlertEditor] = React.useState(false);
+  const [editingAlert, setEditingAlert] = React.useState<PriceAlert | null>(null);
+  const [editorProviderId, setEditorProviderId] = React.useState('');
+  const [editorDirection, setEditorDirection] = React.useState<PriceAlertDirection>('price_below');
+  const [editorTargetPrice, setEditorTargetPrice] = React.useState('');
+  const [saved, setSaved] = React.useState<SavedProvider[]>([]);
+
+  const loadAlerts = React.useCallback(async () => {
+    try {
+      const list = await loadPriceAlerts();
+      setAlerts(list);
+    } catch {}
+  }, []);
+
+  React.useEffect(() => {
+    const run = async () => {
+      await loadAlerts();
+      try {
+        const s = await loadSavedProviders();
+        setSaved(s);
+        if (setSavedProviderIds) setSavedProviderIds(s.map(p => p.id));
+      } catch {}
+    };
+    if (loggedInUser) run();
+  }, [loggedInUser, loadAlerts]);
+
+  const openCreateAlert = () => {
+    setEditingAlert(null);
+    setEditorProviderId('');
+    setEditorDirection('price_below');
+    setEditorTargetPrice('');
+    setShowAlertEditor(true);
+  };
+
+  const openEditAlert = (alert: PriceAlert) => {
+    setEditingAlert(alert);
+    setEditorProviderId(alert.providerId);
+    setEditorDirection(alert.direction);
+    setEditorTargetPrice(String(alert.targetPrice));
+    setShowAlertEditor(true);
+  };
+
+  const saveAlert = async () => {
+    const price = parseFloat(editorTargetPrice);
+    if (!editorProviderId) {
+      Alert.alert('Validation', 'Select a provider');
+      return;
+    }
+    if (isNaN(price) || price <= 0) {
+      Alert.alert('Validation', 'Enter a valid target price');
+      return;
+    }
+    try {
+      await upsertPriceAlert({
+        id: editingAlert?.id,
+        providerId: editorProviderId,
+        targetPrice: price,
+        direction: editorDirection,
+        enabled: editingAlert?.enabled ?? true
+      });
+      setShowAlertEditor(false);
+      setEditingAlert(null);
+      await loadAlerts();
+    } catch {
+      Alert.alert('Error', 'Failed to save alert');
+    }
+  };
+
+  const toggleEnabled = async (alert: PriceAlert) => {
+    try {
+      await upsertPriceAlert({
+        id: alert.id,
+        providerId: alert.providerId,
+        targetPrice: alert.targetPrice,
+        direction: alert.direction,
+        enabled: !alert.enabled
+      });
+      await loadAlerts();
+    } catch {}
+  };
+
+  const deleteAlert = async (alert: PriceAlert) => {
+    Alert.alert('Delete Alert', 'Are you sure you want to delete this alert?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await removePriceAlert(alert.id);
+            await loadAlerts();
+          } catch {
+            Alert.alert('Error', 'Failed to delete alert');
+          }
+        }
+      }
+    ]);
+  };
+
+  const providerNameOf = (providerId: string) => {
+    const p = electricityProviders.find(p => (p._id || p.id) === providerId);
+    return p ? p.name : providerId;
+  };
+  const removeSavedProvider = async (item: SavedProvider) => {
+    try {
+      await spToggleSaveProvider({ id: item.id, name: item.name, type: item.type });
+      const s = await loadSavedProviders();
+      setSaved(s);
+      if (setSavedProviderIds) setSavedProviderIds(s.map(p => p.id));
+    } catch {
+      Alert.alert('Error', 'Failed to remove saved provider');
+    }
+  };
   
   const renderPersonalData = () => {
     if (!loggedInUser) {
@@ -136,8 +252,8 @@ export default function PersonalTab({
               <Text style={styles.directionText}>Remove inactive providers</Text>
             </View>
             <View style={styles.directionItem}>
-              <Ionicons name="refresh" size={20} color="#FF9800" />
-              <Text style={styles.directionText}>Monitor purchase activity below</Text>
+              <Ionicons name="time" size={20} color="#FF9800" />
+              <Text style={styles.directionText}>View providers and purchases in the History tab</Text>
             </View>
           </View>
 
@@ -171,43 +287,14 @@ export default function PersonalTab({
             )}
           </View>
 
-          {/* Purchase History Section */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="receipt" size={24} color="#2196F3" />
-              <Text style={styles.sectionTitle}>Recent Purchases</Text>
-              <Text style={styles.sectionCount}>({userPurchases.length})</Text>
-            </View>
-            {userPurchases.length > 0 ? (
-              userPurchases.map((purchase, index) => (
-                <View key={purchase.id || purchase._id || `purchase-${index}`} style={styles.purchaseListItem}>
-                  <View style={styles.purchaseListInfo}>
-                    <Text style={styles.purchaseListProvider}>{purchase.provider}</Text>
-                    <Text style={styles.purchaseListDate}>{purchase.date}</Text>
-                    <Text style={styles.purchaseListAmount}>{purchase.amount} kWh</Text>
-                  </View>
-                  <View style={styles.purchaseListStats}>
-                    <Text style={styles.purchaseListCost}>${purchase.cost.toFixed(2)}</Text>
-                    <Text style={styles.purchaseListStatus}>
-                      {purchase.status === 'local' ? '🔄 Local' : '✅ Complete'}
-                    </Text>
-                  </View>
-                </View>
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Ionicons name="receipt-outline" size={48} color="#ccc" />
-                <Text style={styles.emptyStateText}>No purchases yet</Text>
-                <Text style={styles.emptyStateSubtext}>Purchases will appear here</Text>
-              </View>
-            )}
-          </View>
+          {/* Recent Purchases moved to History tab */}
 
           {/* Logout Button */}
-          <TouchableOpacity style={styles.adminLogoutButton} onPress={handleLogout}>
+          <TouchableOpacity style={[styles.adminLogoutButton, { marginBottom: 24 }]} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={20} color="#fff" />
             <Text style={styles.adminLogoutText}>Logout</Text>
           </TouchableOpacity>
+          <View style={{ height: 24 }} />
         </ScrollView>
       );
     }
@@ -305,6 +392,11 @@ export default function PersonalTab({
             </View>
           </View>
           
+          {/* Alerts moved to Alerts tab */}
+
+          {/* Saved Providers Section */}
+          {/* Saved Providers moved to Alerts tab */}
+
           <View style={styles.carbonFootprint}>
             <Text style={styles.carbonTitle}>Carbon Footprint</Text>
             <Text style={styles.carbonValue}>{userData.carbonFootprint} tons CO2/year</Text>
@@ -328,5 +420,105 @@ export default function PersonalTab({
     );
   };
 
-  return renderPersonalData();
+  const content = renderPersonalData();
+  return (
+    <>
+      {content}
+      <AlertsEditorModal
+        visible={showAlertEditor}
+        onClose={() => setShowAlertEditor(false)}
+        providers={electricityProviders}
+        providerId={editorProviderId}
+        setProviderId={setEditorProviderId}
+        direction={editorDirection}
+        setDirection={setEditorDirection}
+        targetPrice={editorTargetPrice}
+        setTargetPrice={setEditorTargetPrice}
+        onSave={saveAlert}
+      />
+    </>
+  );
+}
+
+// Inline modal editor for creating/updating alerts
+// Placed after default export to keep JSX co-located
+export function AlertsEditorModal({
+  visible,
+  onClose,
+  providers,
+  providerId,
+  setProviderId,
+  direction,
+  setDirection,
+  targetPrice,
+  setTargetPrice,
+  onSave
+}: {
+  visible: boolean;
+  onClose: () => void;
+  providers: any[];
+  providerId: string;
+  setProviderId: (id: string) => void;
+  direction: PriceAlertDirection;
+  setDirection: (d: PriceAlertDirection) => void;
+  targetPrice: string;
+  setTargetPrice: (p: string) => void;
+  onSave: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Price Alert</Text>
+          <Text style={styles.modalSubtitle}>Select provider and target price</Text>
+
+          <Text style={styles.label}>Provider</Text>
+          <ScrollView style={{ maxHeight: 160 }}>
+            {providers.map((p: any) => {
+              const id = p._id || p.id;
+              if (!id) return null;
+              const selected = id === providerId;
+              return (
+                <TouchableOpacity key={id} style={[styles.providerListItem, selected ? { borderColor: '#2E7D32', borderWidth: 1 } : null]} onPress={() => setProviderId(id)}>
+                  <View style={styles.providerListInfo}>
+                    <Text style={styles.providerListName}>{p.name}</Text>
+                    <Text style={styles.providerListPrice}>${p.price}/kWh</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <Text style={[styles.label, { marginTop: 12 }]}>Condition</Text>
+          <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+            <TouchableOpacity style={[styles.smallButton, direction === 'price_below' ? { backgroundColor: '#2E7D32' } : { backgroundColor: '#ccc' }]} onPress={() => setDirection('price_below')}>
+              <Text style={[styles.smallButtonText, { color: '#fff' }]}>Price below than</Text>
+            </TouchableOpacity>
+            <View style={{ width: 8 }} />
+            <TouchableOpacity style={[styles.smallButton, direction === 'kwh_above' ? { backgroundColor: '#2E7D32' } : { backgroundColor: '#ccc' }]} onPress={() => setDirection('kwh_above')}>
+              <Text style={[styles.smallButtonText, { color: '#fff' }]}>kWh more than</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.label}>{direction === 'kwh_above' ? 'Target kWh (available)' : 'Target Price ($/kWh)'}</Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="decimal-pad"
+            value={targetPrice}
+            onChangeText={setTargetPrice}
+            placeholder={direction === 'kwh_above' ? 'e.g. 500' : 'e.g. 0.20'}
+          />
+
+          <View style={styles.modalButtons}>
+            <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.confirmButton} onPress={onSave}>
+              <Text style={styles.confirmButtonText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 }
