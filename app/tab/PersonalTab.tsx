@@ -64,8 +64,23 @@ export default function PersonalTab({
   userData
 }: PersonalTabProps) {
   const [alerts, setAlerts] = React.useState<PriceAlert[]>([]);
-  const [showAdminActions, setShowAdminActions] = React.useState(true);
-  const [showActiveProviders, setShowActiveProviders] = React.useState(true);
+  const formatDateTime = (raw: any): string => {
+    if (!raw) return '—';
+    try {
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
+      }
+    } catch {}
+    return String(raw);
+  };
+  const [showAdminActions, setShowAdminActions] = React.useState(false);
+  const [showActiveProviders, setShowActiveProviders] = React.useState(false);
   // Login avatar animation state
   const [isTyping, setIsTyping] = React.useState(false);
   const [usernameFocused, setUsernameFocused] = React.useState(false);
@@ -109,6 +124,8 @@ export default function PersonalTab({
   const [editorDirection, setEditorDirection] = React.useState<PriceAlertDirection>('price_below');
   const [editorTargetPrice, setEditorTargetPrice] = React.useState('');
   const [saved, setSaved] = React.useState<SavedProvider[]>([]);
+  const [showProviderDetail, setShowProviderDetail] = React.useState(false);
+  const [selectedProvider, setSelectedProvider] = React.useState<any | null>(null);
 
   const loadAlerts = React.useCallback(async () => {
     try {
@@ -341,8 +358,8 @@ export default function PersonalTab({
 
           {/* Admin Directions */}
           <View style={styles.adminDirections}>
-            <TouchableOpacity onPress={() => setShowAdminActions(!showAdminActions)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={styles.directionsTitle}>📋 Admin Actions</Text>
+            <TouchableOpacity onPress={() => setShowAdminActions(!showAdminActions)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 }}>
+              <Text style={styles.sectionTitle}>📋 Admin Actions</Text>
               <Ionicons name={showAdminActions ? 'chevron-up' : 'chevron-down'} size={20} color="#666" />
             </TouchableOpacity>
             {showAdminActions && (
@@ -368,17 +385,18 @@ export default function PersonalTab({
           </View>
 
           {/* Active Providers Section */}
-          <View style={styles.sectionContainer}>
-            <TouchableOpacity style={styles.sectionHeader} onPress={() => setShowActiveProviders(!showActiveProviders)}>
+          <View style={[styles.sectionContainer, { paddingVertical: 0 }]}>
+            <TouchableOpacity style={[styles.sectionHeader, { paddingVertical: 12 }]} onPress={() => setShowActiveProviders(!showActiveProviders)}>
               <Ionicons name="business" size={24} color="#2E7D32" />
               <Text style={styles.sectionTitle}>Active Providers</Text>
               <Text style={styles.sectionCount}>({electricityProviders.length})</Text>
+              <View style={{ flex: 1 }} />
               <Ionicons name={showActiveProviders ? 'chevron-up' : 'chevron-down'} size={20} color="#666" />
             </TouchableOpacity>
             {showActiveProviders && (
               electricityProviders.length > 0 ? (
                 electricityProviders.map((provider, index) => (
-                  <View key={provider._id || provider.id || `${provider.name}-${index}`} style={styles.providerListItem}>
+                  <TouchableOpacity key={provider._id || provider.id || `${provider.name}-${index}`} style={styles.providerListItem} onPress={() => { setSelectedProvider(provider); setShowProviderDetail(true); }}>
                     <View style={styles.providerListInfo}>
                       <Text style={styles.providerListName}>{provider.name}</Text>
                       <Text style={styles.providerListType}>{provider.type} Energy</Text>
@@ -388,7 +406,7 @@ export default function PersonalTab({
                       <Text style={styles.providerListRating}>⭐ {provider.rating}</Text>
                       <Text style={styles.providerListAvailable}>{provider.available} kWh</Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 ))
               ) : (
                 <View style={styles.emptyState}>
@@ -399,6 +417,65 @@ export default function PersonalTab({
               )
             )}
           </View>
+
+          {/* Provider Detail Modal (Admin) */}
+          <Modal visible={showProviderDetail} transparent animationType="fade" onRequestClose={() => setShowProviderDetail(false)}>
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+              <View style={{ backgroundColor: '#fff', borderRadius: 12, width: '100%', padding: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Ionicons name="business" size={22} color="#2E7D32" />
+                  <Text style={{ fontSize: 18, fontWeight: '600', marginLeft: 8 }}>Provider Details</Text>
+                </View>
+                {selectedProvider ? (
+                  <View>
+                    <View style={{ marginVertical: 6 }}>
+                      <Text style={{ color: '#666', fontSize: 12 }}>Provider Name</Text>
+                      <Text style={{ fontSize: 16 }}>{selectedProvider.name}</Text>
+                    </View>
+                    <View style={{ marginVertical: 6 }}>
+                      <Text style={{ color: '#666', fontSize: 12 }}>Type</Text>
+                      <Text style={{ fontSize: 16 }}>{selectedProvider.type}</Text>
+                    </View>
+                    <View style={{ marginVertical: 6 }}>
+                      <Text style={{ color: '#666', fontSize: 12 }}>Price</Text>
+                      <Text style={{ fontSize: 16 }}>${Number(selectedProvider.price ?? 0).toFixed(2)}/kWh</Text>
+                    </View>
+                    <View style={{ marginVertical: 6 }}>
+                      <Text style={{ color: '#666', fontSize: 12 }}>Rating</Text>
+                      <Text style={{ fontSize: 16 }}>{selectedProvider.rating}</Text>
+                    </View>
+                    <View style={{ marginVertical: 6 }}>
+                      <Text style={{ color: '#666', fontSize: 12 }}>Available</Text>
+                      <Text style={{ fontSize: 16 }}>{selectedProvider.available} kWh</Text>
+                    </View>
+                    <View style={{ marginVertical: 6 }}>
+                      <Text style={{ color: '#666', fontSize: 12 }}>Description</Text>
+                      <Text style={{ fontSize: 16 }}>{selectedProvider.description || '—'}</Text>
+                    </View>
+                    <View style={{ marginVertical: 6 }}>
+                      <Text style={{ color: '#666', fontSize: 12 }}>Location</Text>
+                      <Text style={{ fontSize: 16 }}>{selectedProvider.location || selectedProvider.city || '—'}</Text>
+                    </View>
+                    <View style={{ marginVertical: 6 }}>
+                      <Text style={{ color: '#666', fontSize: 12 }}>Contact Email</Text>
+                      <Text style={{ fontSize: 16 }}>{selectedProvider.contactEmail || selectedProvider.email || '—'}</Text>
+                    </View>
+                    <View style={{ marginVertical: 6 }}>
+                      <Text style={{ color: '#666', fontSize: 12 }}>Contact Phone</Text>
+                      <Text style={{ fontSize: 16 }}>{selectedProvider.contactPhone || selectedProvider.phone || '—'}</Text>
+                    </View>
+                    <View style={{ marginVertical: 6 }}>
+                      <Text style={{ color: '#666', fontSize: 12 }}>Created At</Text>
+                      <Text style={{ fontSize: 16 }}>{formatDateTime(selectedProvider.createdAt || selectedProvider.created_at)}</Text>
+                    </View>
+                  </View>
+                ) : null}
+                <TouchableOpacity style={{ marginTop: 12, backgroundColor: '#2E7D32', paddingVertical: 10, borderRadius: 8, alignItems: 'center' }} onPress={() => setShowProviderDetail(false)}>
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
 
           {/* Recent Purchases moved to History tab */}
 
