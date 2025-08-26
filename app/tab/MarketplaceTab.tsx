@@ -70,6 +70,11 @@ interface MarketplaceTabProps {
   updateProvider: (API_BASE_URL: string, providerId: string, providerData: any, refreshCallback: () => Promise<void>) => Promise<any>;
   deleteProvider: (API_BASE_URL: string, providerId: string) => Promise<boolean>;
   
+  // Saved providers & alerts
+  savedProviderIds: string[];
+  onToggleSaveProvider: (provider: any) => Promise<void> | void;
+  onCreatePriceAlert: (provider: any) => void;
+  
   // Handler functions
   handlePurchase: () => Promise<void>;
   handleAddProvider: () => Promise<void>;
@@ -146,6 +151,11 @@ export default function MarketplaceTab({
   createProvider,
   updateProvider,
   deleteProvider,
+  
+  // Saved providers & alerts
+  savedProviderIds,
+  onToggleSaveProvider,
+  onCreatePriceAlert,
   
   // Handler functions
   handlePurchase,
@@ -268,26 +278,46 @@ export default function MarketplaceTab({
                     );
                   }
                   
-                  return loggedInUser ? (
-                    <TouchableOpacity 
-                      style={styles.buyButton}
-                      onPress={() => {
-                        setSelectedProvider(provider);
-                        setShowProviderModal(true);
-                      }}
-                    >
-                      <Text style={styles.buyButtonText}>Buy</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity 
-                      style={[styles.buyButton, { backgroundColor: '#ccc' }]}
-                      onPress={() => {
-                        console.log('Login to Buy button pressed');
-                        setShowLoginRequiredModal(true);
-                      }}
-                    >
-                      <Text style={[styles.buyButtonText, { color: '#666' }]}>Login to Buy</Text>
-                    </TouchableOpacity>
+                  const providerId = provider._id || provider.id;
+                  const isSaved = savedProviderIds.includes(providerId);
+                  return (
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {loggedInUser ? (
+                        <>
+                          <TouchableOpacity 
+                            style={styles.buyButton}
+                            onPress={() => {
+                              setSelectedProvider(provider);
+                              setShowProviderModal(true);
+                            }}
+                          >
+                            <Text style={styles.buyButtonText}>Buy</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.editButton]}
+                            onPress={() => onToggleSaveProvider(provider)}
+                          >
+                            <Text style={styles.editButtonText}>{isSaved ? 'Saved' : 'Save'}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.editButton]}
+                            onPress={() => onCreatePriceAlert(provider)}
+                          >
+                            <Text style={styles.editButtonText}>Alert</Text>
+                          </TouchableOpacity>
+                        </>
+                      ) : (
+                        <TouchableOpacity 
+                          style={[styles.buyButton, { backgroundColor: '#ccc' }]}
+                          onPress={() => {
+                            console.log('Login to Buy button pressed');
+                            setShowLoginRequiredModal(true);
+                          }}
+                        >
+                          <Text style={[styles.buyButtonText, { color: '#666' }]}>Login to Buy</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   );
                 })()
               )}
@@ -329,7 +359,7 @@ export default function MarketplaceTab({
         </TouchableOpacity>
       )}
 
-      {userPurchases.length > 0 && (
+      {isAdminMode && userPurchases.length > 0 && (
         <View style={styles.purchasesCard}>
           <Text style={styles.purchasesTitle}>Recent Purchases</Text>
           {userPurchases.slice(-3).map((purchase, idx) => (

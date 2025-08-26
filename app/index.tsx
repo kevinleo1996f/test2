@@ -14,32 +14,41 @@ import React, { useEffect, useState } from 'react';
 
 // Import React Native components for building the mobile app
 import {
-  Alert, // For showing popup alerts and confirmations
-  Dimensions, // For getting screen dimensions (width, height)
-  Modal, // For showing modal dialogs (popup forms)
-  Platform, // For platform-specific code (iOS/Android/Web)
-  SafeAreaView, // For safe area on different devices (notches, etc.)
-  ScrollView, // For status bar styling
-  Text, // For displaying text
-  TextInput, // For input fields (forms)
-  TouchableOpacity, // For touchable buttons
-  View // For container views (like div in web)
+    Alert, // For showing popup alerts and confirmations
+    Dimensions, // For getting screen dimensions (width, height)
+    Modal, // For showing modal dialogs (popup forms)
+    Platform, // For platform-specific code (iOS/Android/Web)
+    SafeAreaView, // For safe area on different devices (notches, etc.)
+    ScrollView, // For status bar styling
+    Text, // For displaying text
+    TextInput, // For input fields (forms)
+    TouchableOpacity, // For touchable buttons
+    View // For container views (like div in web)
 } from 'react-native';
 
 // Import styles from separate file for easier debugging
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import {
-  checkApiConnection,
-  createProvider,
-  createPurchase,
-  deleteProvider,
-  fetchProviders,
-  fetchUserPurchases,
-  updateProvider
+    checkApiConnection,
+    createProvider,
+    createPurchase,
+    deleteProvider,
+    fetchProviders,
+    fetchUserPurchases,
+    updateProvider
 } from './components/crud';
 import Header from './components/Header';
+import {
+    checkAlertsAndNotify,
+    loadSavedProviders,
+    toggleSaveProvider as spToggleSaveProvider,
+    upsertPriceAlert,
+    type PriceAlertDirection
+} from './components/savedProviders';
 import { validateAdminForm, validateUserForm } from './components/validation';
 import { styles } from './styles';
+import AlertsTab from './tab/AlertsTab';
+import HistoryTab from './tab/HistoryTab';
 import MarketplaceTab from './tab/MarketplaceTab';
 import PersonalTab from './tab/PersonalTab';
 import StorageTab from './tab/StorageTab';
@@ -217,6 +226,12 @@ export default function Index() {
   });
   // Admin form validation errors
   const [adminFormErrors, setAdminFormErrors] = useState<{[key: string]: string}>({});
+  // Saved providers and alerts state
+  const [savedProviderIds, setSavedProviderIds] = useState<string[]>([]);
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertProviderId, setAlertProviderId] = useState<string | null>(null);
+  const [alertTargetPrice, setAlertTargetPrice] = useState<string>('');
+  const [alertDirection, setAlertDirection] = useState<PriceAlertDirection>('price_below');
 
   // Login handler
   const handleLogin = () => {
@@ -233,6 +248,49 @@ export default function Index() {
     }
   };
 
+  // Saved providers handlers
+  const handleToggleSaveProvider = async (provider: any) => {
+    try {
+      const result = await spToggleSaveProvider(provider);
+      setSavedProviderIds(result.list.map(s => s.id));
+    } catch (e) {
+      Alert.alert('Error', 'Failed to update saved providers');
+    }
+  };
+
+  const openCreateAlert = (provider: any) => {
+    const id = provider?._id || provider?.id;
+    if (!id) {
+      Alert.alert('Error', 'Provider ID missing');
+          return;
+        }
+    setAlertProviderId(id);
+    setAlertTargetPrice('');
+    setAlertDirection('price_below');
+    setShowAlertModal(true);
+  };
+
+  const confirmCreateAlert = async () => {
+    if (!alertProviderId) {
+      setShowAlertModal(false);
+          return;
+        }
+    const valueNum = parseFloat(alertTargetPrice);
+    if (isNaN(valueNum) || valueNum <= 0) {
+      Alert.alert('Validation', 'Enter a valid target value');
+        return;
+      }
+     try {
+      await upsertPriceAlert({ providerId: alertProviderId, targetPrice: valueNum, direction: alertDirection, enabled: true });
+      setShowAlertModal(false);
+      Alert.alert('Alert Saved', alertDirection === 'kwh_above'
+        ? `Will notify when available kWh is more than ${valueNum}`
+        : `Will notify when price is below ${valueNum}`);
+    } catch {
+      Alert.alert('Error', 'Failed to save alert');
+    }
+  };
+
   // Logout handler
   const handleLogout = () => {
     setLoggedInUser(null);
@@ -240,7 +298,7 @@ export default function Index() {
   };
 
 
-
+  
   // Pull-to-refresh state
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshOffset, setRefreshOffset] = useState(0);
@@ -295,6 +353,10 @@ export default function Index() {
           await checkUserProviderStatus();
         }
       }
+      try {
+        const saved = await loadSavedProviders();
+        setSavedProviderIds(saved.map(s => s.id));
+      } catch {}
     };
 
     initializeApp();
@@ -384,6 +446,21 @@ export default function Index() {
     if (apiStatus === 'connected') {
       await fetchProviders(API_BASE_URL, setIsLoading, setElectricityProviders);
     }
+    try {
+      const providerSummaries = electricityProviders.map((p: any) => ({
+        _id: p._id,
+        id: p.id,
+        name: p.name,
+        price: Number(p.price) || 0
+      }));
+      const matches = await checkAlertsAndNotify(providerSummaries);
+      if (matches.length > 0) {
+        const msg = matches
+          .map(m => `${m.provider.name} price ${m.provider.price} triggered (${m.alert.direction} ${m.alert.targetPrice})`)
+          .join('\n');
+        Alert.alert('Price Alerts', msg);
+      }
+    } catch {}
   };
 
   const storageCost = calculateStorageCost();
@@ -713,6 +790,38 @@ export default function Index() {
     }
   }, [navigateToPersonal]);
 
+  // Evaluate price alerts whenever provider list updates
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const providerSummaries = electricityProviders.map((p: any) => ({
+          _id: p._id,
+          id: p.id,
+          name: p.name,
+          price: Number(p.price) || 0,
+          available: typeof p.available === 'number' ? p.available : Number(p.available) || 0
+        }));
+        const matches = await checkAlertsAndNotify(providerSummaries);
+        if (matches.length > 0) {
+          // Deduplicate alerts to avoid duplicate lines in popup
+          const uniqueById = new Map<string, any>();
+          matches.forEach(m => {
+            const key = m.alert?.id ?? `${m.alert.providerId}-${m.alert.direction}-${m.alert.targetPrice}`;
+            if (!uniqueById.has(key)) uniqueById.set(key, m);
+          });
+          const uniqueMatches = Array.from(uniqueById.values());
+          const msg = uniqueMatches
+            .map((m: any) => m.alert.direction === 'kwh_above'
+              ? `${m.provider.name} available ${m.provider.available} kWh ≥ ${m.alert.targetPrice}`
+              : `${m.provider.name} price ${m.provider.price} ≤ ${m.alert.targetPrice}`)
+            .join('\n');
+          Alert.alert('Price Alerts', msg);
+        }
+      } catch {}
+    };
+    if (electricityProviders && electricityProviders.length) run();
+  }, [electricityProviders]);
+
   return (
     <SafeAreaView style={styles.container}>
       <Header title="PowerGrid" subtitle="Smart Energy Management" />
@@ -739,19 +848,38 @@ export default function Index() {
           onPress={() => handleTabChange('personal')}
         >
           <Text style={[styles.tabText, activeTab === 'personal' && styles.activeTabText]}>
-            Personal
+            {loggedInUser === 'admin' ? 'Admin' : loggedInUser ? 'Personal' : 'Login'}
           </Text>
         </TouchableOpacity>
+        {loggedInUser && !isAdminMode && (
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'alerts' && styles.activeTab]}
+            onPress={() => handleTabChange('alerts')}
+          >
+            <Text style={[styles.tabText, activeTab === 'alerts' && styles.activeTabText]}>
+              Alerts
+            </Text>
+          </TouchableOpacity>
+        )}
+        {loggedInUser && isAdminMode && (
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'history' && styles.activeTab]}
+            onPress={() => handleTabChange('history')}
+          >
+            <Text style={[styles.tabText, activeTab === 'history' && styles.activeTabText]}>
+              History
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
       
       
       
       {/* Wrap content with gesture handler root (zoom removed) */}
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={{ flex: 1 }}>
           <View style={{ flex: 1 }}>
-            <View style={{ flex: 1 }}>
               <View style={{ flex: 1 }}>
+            <View style={{ flex: 1 }}>
       {activeTab === 'marketplace' && (
         <MarketplaceTab
           // State props
@@ -813,6 +941,11 @@ export default function Index() {
            updateProvider={updateProvider}
            deleteProvider={deleteProvider}
           
+          // Saved providers & alerts
+          savedProviderIds={savedProviderIds}
+          onToggleSaveProvider={handleToggleSaveProvider}
+          onCreatePriceAlert={openCreateAlert}
+          
           // Handler functions
           handlePurchase={handlePurchase}
           handleAddProvider={handleAddProvider}
@@ -865,6 +998,7 @@ export default function Index() {
                         loggedInUser={loggedInUser}
                         userProviderStatus={userProviderStatus}
                         electricityProviders={electricityProviders}
+                        setSavedProviderIds={setSavedProviderIds}
                         
                         // Login state
                         loginState={loginState}
@@ -880,10 +1014,24 @@ export default function Index() {
                         userData={userData}
                       />
                     )}
+                    {activeTab === 'alerts' && (
+                      <AlertsTab
+                        electricityProviders={electricityProviders}
+                        loggedInUser={loggedInUser}
+                        setSavedProviderIds={setSavedProviderIds}
+                      />
+                    )}
+                    {activeTab === 'history' && (
+                      <HistoryTab
+                        electricityProviders={electricityProviders}
+                        userPurchases={userPurchases}
+                        isAdminMode={isAdminMode}
+                        onLogout={handleLogout}
+                      />
+                    )}
+                  </View>
               </View>
-            </View>
           </View>
-        </View>
         
         {/* Separate pull-to-refresh handler for marketplace */}
         {activeTab === 'marketplace' && (
@@ -899,6 +1047,53 @@ export default function Index() {
       </GestureHandlerRootView>
 
 
+
+      {/* Create Price Alert Modal */}
+      <Modal
+        visible={showAlertModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAlertModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Create Alert</Text>
+            <Text style={styles.label}>Condition</Text>
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+              <TouchableOpacity
+                style={[styles.typeOption, alertDirection === 'price_below' && styles.typeOptionSelected]}
+                onPress={() => setAlertDirection('price_below')}
+              >
+                <Text style={[styles.typeOptionText, alertDirection === 'price_below' && styles.typeOptionTextSelected]}>Price below than</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.typeOption, alertDirection === 'kwh_above' && styles.typeOptionSelected]}
+                onPress={() => setAlertDirection('kwh_above')}
+              >
+                <Text style={[styles.typeOptionText, alertDirection === 'kwh_above' && styles.typeOptionTextSelected]}>kWh more than</Text>
+              </TouchableOpacity>
+            </View>
+                <View style={styles.inputGroup}>
+              <Text style={styles.label}>{alertDirection === 'kwh_above' ? 'Target kWh (available)' : 'Target Price ($/kWh)'}</Text>
+                  <TextInput
+                    style={styles.input}
+                value={alertTargetPrice}
+                onChangeText={setAlertTargetPrice}
+                placeholder={alertDirection === 'kwh_above' ? 'e.g. 500' : '0.00'}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setShowAlertModal(false)}>
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+              <TouchableOpacity style={styles.confirmButton} onPress={confirmCreateAlert}>
+                <Text style={styles.confirmButtonText}>Save</Text>
+                  </TouchableOpacity>
+                </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Add Provider Modal */}
       <Modal
