@@ -446,21 +446,30 @@ export default function Index() {
     if (apiStatus === 'connected') {
       await fetchProviders(API_BASE_URL, setIsLoading, setElectricityProviders);
     }
-    try {
-      const providerSummaries = electricityProviders.map((p: any) => ({
-        _id: p._id,
-        id: p.id,
-        name: p.name,
-        price: Number(p.price) || 0
-      }));
-      const matches = await checkAlertsAndNotify(providerSummaries);
-      if (matches.length > 0) {
-        const msg = matches
-          .map(m => `${m.provider.name} price ${m.provider.price} triggered (${m.alert.direction} ${m.alert.targetPrice})`)
-          .join('\n');
-        Alert.alert('Price Alerts', msg);
-      }
-    } catch {}
+           // Only check alerts if user is logged in
+       if (loggedInUser && !isAdminMode) {
+         try {
+           const providerSummaries = electricityProviders.map((p: any) => ({
+             _id: p._id,
+             id: p.id,
+             name: p.name,
+             price: Number(p.price) || 0
+           }));
+           const matches = await checkAlertsAndNotify(providerSummaries);
+           if (matches.length > 0) {
+             const msg = matches
+               .map(m => {
+                 const direction = m.alert.direction === 'price_below' ? 'price below' : 'kWh above';
+                 const target = m.alert.direction === 'price_below' 
+                   ? `$${m.alert.targetPrice}` 
+                   : `${m.alert.targetPrice} kWh`;
+                return `${m.provider.name} ${direction === 'price below' ? 'price is less than' : 'available kWh is more than'} ${target}`;
+               })
+               .join('\n');
+             Alert.alert('Price Alerts', msg);
+           }
+         } catch {}
+       }
   };
 
   const storageCost = calculateStorageCost();
@@ -790,37 +799,40 @@ export default function Index() {
     }
   }, [navigateToPersonal]);
 
-  // Evaluate price alerts whenever provider list updates
-  useEffect(() => {
-    const run = async () => {
-      try {
-        const providerSummaries = electricityProviders.map((p: any) => ({
-          _id: p._id,
-          id: p.id,
-          name: p.name,
-          price: Number(p.price) || 0,
-          available: typeof p.available === 'number' ? p.available : Number(p.available) || 0
-        }));
-        const matches = await checkAlertsAndNotify(providerSummaries);
-        if (matches.length > 0) {
-          // Deduplicate alerts to avoid duplicate lines in popup
-          const uniqueById = new Map<string, any>();
-          matches.forEach(m => {
-            const key = m.alert?.id ?? `${m.alert.providerId}-${m.alert.direction}-${m.alert.targetPrice}`;
-            if (!uniqueById.has(key)) uniqueById.set(key, m);
-          });
-          const uniqueMatches = Array.from(uniqueById.values());
-          const msg = uniqueMatches
-            .map((m: any) => m.alert.direction === 'kwh_above'
-              ? `${m.provider.name} available ${m.provider.available} kWh ≥ ${m.alert.targetPrice}`
-              : `${m.provider.name} price ${m.provider.price} ≤ ${m.alert.targetPrice}`)
-            .join('\n');
-          Alert.alert('Price Alerts', msg);
-        }
-      } catch {}
-    };
-    if (electricityProviders && electricityProviders.length) run();
-  }, [electricityProviders]);
+     // Evaluate price alerts whenever provider list updates (only if user is logged in)
+   useEffect(() => {
+     const run = async () => {
+       // Only check alerts if user is logged in and not in admin mode
+       if (!loggedInUser || isAdminMode) return;
+       
+       try {
+         const providerSummaries = electricityProviders.map((p: any) => ({
+           _id: p._id,
+           id: p.id,
+           name: p.name,
+           price: Number(p.price) || 0,
+           available: typeof p.available === 'number' ? p.available : Number(p.available) || 0
+         }));
+         const matches = await checkAlertsAndNotify(providerSummaries);
+         if (matches.length > 0) {
+           // Deduplicate alerts to avoid duplicate lines in popup
+           const uniqueById = new Map<string, any>();
+           matches.forEach(m => {
+             const key = m.alert?.id ?? `${m.alert.providerId}-${m.alert.direction}-${m.alert.targetPrice}`;
+             if (!uniqueById.has(key)) uniqueById.set(key, m);
+           });
+           const uniqueMatches = Array.from(uniqueById.values());
+           const msg = uniqueMatches
+             .map((m: any) => m.alert.direction === 'kwh_above'
+               ? `${m.provider.name} available kWh is more than ${m.alert.targetPrice} kWh`
+               : `${m.provider.name} price is less than $${m.alert.targetPrice}`)
+             .join('\n');
+           Alert.alert('Price Alerts', msg);
+         }
+       } catch {}
+     };
+     if (electricityProviders && electricityProviders.length) run();
+   }, [electricityProviders, loggedInUser, isAdminMode]);
 
   return (
     <SafeAreaView style={styles.container}>

@@ -58,6 +58,8 @@ export default function PersonalTab({
   userData
 }: PersonalTabProps) {
   const [alerts, setAlerts] = React.useState<PriceAlert[]>([]);
+  const [showAdminActions, setShowAdminActions] = React.useState(true);
+  const [showActiveProviders, setShowActiveProviders] = React.useState(true);
   const [showAlertEditor, setShowAlertEditor] = React.useState(false);
   const [editingAlert, setEditingAlert] = React.useState<PriceAlert | null>(null);
   const [editorProviderId, setEditorProviderId] = React.useState('');
@@ -238,52 +240,62 @@ export default function PersonalTab({
 
           {/* Admin Directions */}
           <View style={styles.adminDirections}>
-            <Text style={styles.directionsTitle}>📋 Admin Actions</Text>
-            <View style={styles.directionItem}>
-              <Ionicons name="add-circle" size={20} color="#4CAF50" />
-              <Text style={styles.directionText}>Add new providers in Marketplace tab</Text>
-            </View>
-            <View style={styles.directionItem}>
-              <Ionicons name="create" size={20} color="#2196F3" />
-              <Text style={styles.directionText}>Edit provider details and pricing</Text>
-            </View>
-            <View style={styles.directionItem}>
-              <Ionicons name="trash" size={20} color="#F44336" />
-              <Text style={styles.directionText}>Remove inactive providers</Text>
-            </View>
-            <View style={styles.directionItem}>
-              <Ionicons name="time" size={20} color="#FF9800" />
-              <Text style={styles.directionText}>View providers and purchases in the History tab</Text>
-            </View>
+            <TouchableOpacity onPress={() => setShowAdminActions(!showAdminActions)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={styles.directionsTitle}>📋 Admin Actions</Text>
+              <Ionicons name={showAdminActions ? 'chevron-up' : 'chevron-down'} size={20} color="#666" />
+            </TouchableOpacity>
+            {showAdminActions && (
+              <>
+                <View style={styles.directionItem}>
+                  <Ionicons name="add-circle" size={20} color="#4CAF50" />
+                  <Text style={styles.directionText}>Add new providers in Marketplace tab</Text>
+                </View>
+                <View style={styles.directionItem}>
+                  <Ionicons name="create" size={20} color="#2196F3" />
+                  <Text style={styles.directionText}>Edit provider details and pricing</Text>
+                </View>
+                <View style={styles.directionItem}>
+                  <Ionicons name="trash" size={20} color="#F44336" />
+                  <Text style={styles.directionText}>Remove inactive providers</Text>
+                </View>
+                <View style={styles.directionItem}>
+                  <Ionicons name="time" size={20} color="#FF9800" />
+                  <Text style={styles.directionText}>View providers and purchases in the History tab</Text>
+                </View>
+              </>
+            )}
           </View>
 
           {/* Active Providers Section */}
           <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
+            <TouchableOpacity style={styles.sectionHeader} onPress={() => setShowActiveProviders(!showActiveProviders)}>
               <Ionicons name="business" size={24} color="#2E7D32" />
               <Text style={styles.sectionTitle}>Active Providers</Text>
               <Text style={styles.sectionCount}>({electricityProviders.length})</Text>
-            </View>
-            {electricityProviders.length > 0 ? (
-              electricityProviders.map((provider, index) => (
-                <View key={provider._id || provider.id || `${provider.name}-${index}`} style={styles.providerListItem}>
-                  <View style={styles.providerListInfo}>
-                    <Text style={styles.providerListName}>{provider.name}</Text>
-                    <Text style={styles.providerListType}>{provider.type} Energy</Text>
-                    <Text style={styles.providerListPrice}>${provider.price}/kWh</Text>
+              <Ionicons name={showActiveProviders ? 'chevron-up' : 'chevron-down'} size={20} color="#666" />
+            </TouchableOpacity>
+            {showActiveProviders && (
+              electricityProviders.length > 0 ? (
+                electricityProviders.map((provider, index) => (
+                  <View key={provider._id || provider.id || `${provider.name}-${index}`} style={styles.providerListItem}>
+                    <View style={styles.providerListInfo}>
+                      <Text style={styles.providerListName}>{provider.name}</Text>
+                      <Text style={styles.providerListType}>{provider.type} Energy</Text>
+                      <Text style={styles.providerListPrice}>${provider.price}/kWh</Text>
+                    </View>
+                    <View style={styles.providerListStats}>
+                      <Text style={styles.providerListRating}>⭐ {provider.rating}</Text>
+                      <Text style={styles.providerListAvailable}>{provider.available} kWh</Text>
+                    </View>
                   </View>
-                  <View style={styles.providerListStats}>
-                    <Text style={styles.providerListRating}>⭐ {provider.rating}</Text>
-                    <Text style={styles.providerListAvailable}>{provider.available} kWh</Text>
-                  </View>
+                ))
+              ) : (
+                <View style={styles.emptyState}>
+                  <Ionicons name="business-outline" size={48} color="#ccc" />
+                  <Text style={styles.emptyStateText}>No providers available</Text>
+                  <Text style={styles.emptyStateSubtext}>Add providers in the Marketplace tab</Text>
                 </View>
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Ionicons name="business-outline" size={48} color="#ccc" />
-                <Text style={styles.emptyStateText}>No providers available</Text>
-                <Text style={styles.emptyStateSubtext}>Add providers in the Marketplace tab</Text>
-              </View>
+              )
             )}
           </View>
 
