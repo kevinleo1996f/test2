@@ -2,12 +2,15 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
   Animated,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  useWindowDimensions
 } from 'react-native';
 import { styles } from '../styles';
 
@@ -177,6 +180,9 @@ export default function MarketplaceTab({
   console.log('MarketplaceTab rendered with activeTab:', activeTab);
   console.log('setActiveTab function available:', typeof setActiveTab);
   
+  const { width } = useWindowDimensions();
+  const isNarrow = width < 380; // iPhone X ~375
+
   // Custom modal state for login required
   const [showLoginRequiredModal, setShowLoginRequiredModal] = useState(false);
   // Provider detail modal (only for logged-in users)
@@ -184,6 +190,21 @@ export default function MarketplaceTab({
   const [detailProvider, setDetailProvider] = useState<any | null>(null);
   // Provider list expansion control
   const [showAllProviders, setShowAllProviders] = useState(false);
+  // Add Provider modal keyboard handling
+  const addProviderScrollRef = React.useRef<ScrollView | null>(null);
+  const [addProviderExtraPad, setAddProviderExtraPad] = useState(0);
+  const handleAddProvContactFocus = () => {
+    setAddProviderExtraPad(0);
+    setTimeout(() => {
+      addProviderScrollRef.current?.scrollToEnd({ animated: true });
+    }, 50);
+  };
+  const handleAddProvContactBlur = () => {
+    setAddProviderExtraPad(0);
+    setTimeout(() => {
+      addProviderScrollRef.current?.scrollTo({ y: 0, animated: true });
+    }, 50);
+  };
   // Small header animations
   const pulse = React.useRef(new Animated.Value(1)).current;
   const floatY = React.useRef(new Animated.Value(0)).current;
@@ -438,19 +459,19 @@ export default function MarketplaceTab({
           </Animated.View>
           <Text style={{ marginLeft: 8, fontSize: 16, fontWeight: '600', color: '#2E7D32' }}>How it works</Text>
         </View>
-        <View style={{ flexDirection: 'row' }}>
-          <View style={{ flex: 1, paddingRight: 8 }}>
+        <View style={{ flexDirection: isNarrow ? 'column' : 'row' }}>
+          <View style={{ flex: 1, paddingRight: isNarrow ? 0 : 8 }}>
             <Text style={{ color: '#2E7D32' }}>• Set price alerts to be notified when rates drop or availability rises.</Text>
             <Text style={{ color: '#2E7D32', marginTop: 6 }}>• Save trusted providers for quick access.</Text>
             <Text style={{ color: '#2E7D32', marginTop: 6 }}>• Pull down to refresh market data anytime.</Text>
           </View>
           {!loggedInUser ? (
-            <View style={{ width: 160, justifyContent: 'flex-end', alignItems: 'flex-end' }}>
+            <View style={{ width: isNarrow ? '100%' : 160, justifyContent: 'flex-end', alignItems: isNarrow ? 'center' : 'flex-end', marginTop: isNarrow ? 12 : 0 }}>
               <TouchableOpacity
-                style={[styles.smallButton, { backgroundColor: '#2E7D32', paddingHorizontal: 10, paddingVertical: 10 }]}
+                style={[styles.smallButton, { backgroundColor: '#2E7D32', paddingHorizontal: 10, paddingVertical: 10, alignSelf: isNarrow ? 'stretch' : 'auto' }]}
                 onPress={() => setShowLoginRequiredModal(true)}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="lock-closed" size={16} color="#fff" />
                   <Text style={[styles.smallButtonText, { color: '#fff', marginLeft: 6, textAlign: 'center' }]}>Sign in to unlock features</Text>
                 </View>
@@ -615,7 +636,14 @@ export default function MarketplaceTab({
         onRequestClose={() => setShowAddProviderModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <ScrollView
+              ref={addProviderScrollRef}
+              style={styles.modalContent}
+              contentContainerStyle={{ paddingBottom: addProviderExtraPad }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
             <Text style={styles.modalTitle}>Add New Provider</Text>
             
             <View style={styles.inputGroup}>
@@ -752,6 +780,8 @@ export default function MarketplaceTab({
                 placeholder="contact@provider.com"
                 keyboardType="email-address"
                 autoCapitalize="none"
+                onFocus={handleAddProvContactFocus}
+                onBlur={handleAddProvContactBlur}
               />
               {adminFormErrors.contactEmail && (
                 <Text style={styles.errorText}>{adminFormErrors.contactEmail}</Text>
@@ -771,6 +801,8 @@ export default function MarketplaceTab({
                 }}
                 placeholder="04XX XXX XXX"
                 keyboardType="phone-pad"
+                onFocus={handleAddProvContactFocus}
+                onBlur={handleAddProvContactBlur}
               />
               <Text style={styles.helperText}>
                 Australian format: Mobile (04XX XXX XXX) or Landline (XX XXXX XXXX)
@@ -795,7 +827,8 @@ export default function MarketplaceTab({
                 <Text style={styles.confirmButtonText}>Add Provider</Text>
               </TouchableOpacity>
             </View>
-          </ScrollView>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
