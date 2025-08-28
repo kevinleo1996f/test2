@@ -318,6 +318,17 @@ export default function PersonalTab({
               <Text style={styles.actionButtonText}>Login</Text>
             </TouchableOpacity>
             {passwordFocused ? <View style={{ height: 100 }} /> : null}
+
+            {/* Login Tips */}
+            <View style={{ marginTop: 12, backgroundColor: '#F5FDF6', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E0F2E9' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <Ionicons name="information-circle" size={20} color="#2E7D32" />
+                <Text style={{ marginLeft: 8, fontSize: 15, fontWeight: '600', color: '#2E7D32' }}>Login Tips</Text>
+              </View>
+              <Text style={{ color: '#2E7D32' }}>• Usernames and passwords are case-sensitive.</Text>
+              <Text style={{ color: '#2E7D32', marginTop: 6 }}>• Avoid leading/trailing spaces in fields.</Text>
+              <Text style={{ color: '#2E7D32', marginTop: 6 }}>• Passwords should be at least 6 characters.</Text>
+            </View>
               </View>
             </TouchableWithoutFeedback>
           </ScrollView>

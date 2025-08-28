@@ -314,7 +314,7 @@ export default function StorageTab({
       )}
 
       {/* Helpful info footer */}
-      <View style={{ marginTop: 16, marginBottom: 24, backgroundColor: '#F5FDF6', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E0F2E9' }}>
+      <View style={{ marginTop: 0, marginBottom: 24, backgroundColor: '#F5FDF6', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E0F2E9' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
           <Animated.View style={{ transform: [{ scale: pulse }] }}>
             <Ionicons name="bulb" size={22} color="#2E7D32" />
